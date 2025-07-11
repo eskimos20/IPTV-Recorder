@@ -54,7 +54,14 @@ public class M3UParser {
 						// Next line should be the URL
 						url = br.readLine();
 						if (url != null && !url.trim().isEmpty()) {
-							code = lastBigInteger(url).toString();
+							// --- New logic for channelCode extraction ---
+							String urlForCode = url;
+							int lastDot = url.lastIndexOf('.');
+							if (lastDot > url.lastIndexOf('/')) {
+								urlForCode = url.substring(0, lastDot);
+							}
+							code = lastBigInteger(urlForCode).toString();
+							// --- End new logic ---
 							myArray.add(new M3UHolder(name, url, code, groupTitle, tvgId, tvgName));
 						}
 					}
