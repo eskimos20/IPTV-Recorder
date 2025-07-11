@@ -133,3 +133,6 @@ When `SENDMAIL=true` is configured:
 
 ### License
 MIT License
+
+### Developer
+The developer is not responsible for how this tool is used. It is the user’s responsibility to ensure that any recorded content does not violate copyright laws.
