@@ -3,7 +3,8 @@
 Record IPTV from a URL or a M3U file.
 
 ## Features
-- Record IPTV streams from a URL or M3U file
+- This tool is for Recording legal IPTV streams from a URL or M3U file
+- Please do not support piracy and then you can use this as much as you want under MIT Licens
 - Configurable via `config.properties` or environment variables
 - Logging to file and console, with log level support
 - Graceful shutdown and resource management
