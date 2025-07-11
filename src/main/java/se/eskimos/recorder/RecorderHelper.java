@@ -20,28 +20,20 @@ import java.util.NoSuchElementException;
 public class RecorderHelper {
 	
 	// Constants for magic numbers
-	private static final int DISPLAY_LENGTH_ACCEPTED = 160;
 	private static final int BUFFER_SIZE = 8192;
 	private static final int SLEEP_INTERVAL_MS = 1000;
 	private static final String DEFAULT_GROUP_NAME = "Unknown";
 	private static final String FILE_EXTENSION = ".ts";
 	private static final String PLUS_REPLACEMENT = "plus";
-	private static final int CHANNELS_PER_PAGE = 20;
-	private static final int DISPLAY_CODE_LENGTH_ADJUSTMENT = 18;
 	private static final int MAX_FILENAME_LENGTH = 255;
 	private static final long MIN_DISK_SPACE_BYTES = 1024 * 1024 * 100; // 100MB minimum
-	
-	// Remove static fields and make them instance variables (except fileSeparator, which must remain static)
-	private static String fileSeparator = File.separator;
-	
-	public static final String ANSI_RESET = "\u001B[0m";
 	
 	private String timeFrom = "";
 	private String timeTo = "";
 	private String url = "";
 	private String errorMessage = "";
 	
-	private static String OS = System.getProperty("os.name").toLowerCase();
+	// private static String OS = System.getProperty("os.name").toLowerCase(); // REMOVE
 	
 	// Add recording mode tracking
 	private RecordingMode recordingMode = RecordingMode.REGULAR;
@@ -136,6 +128,9 @@ public class RecorderHelper {
 		}
 	}
 	
+	// Add a field to store the max channel name length for the session
+	private int maxNameLength = -1;
+
 	/**
 	 * Displays channel list with pagination and returns a status string.
 	 * @param myChannels List of channels to display
@@ -148,26 +143,16 @@ public class RecorderHelper {
 	public ChannelSelectionResult loadChannels(ArrayList<M3UHolder> myChannels, boolean restarted, String text, String destinationPath, int startIndex) {
         // Only clear screen at the start of paging, not after a failed search
         clearScreen();
-		 int counter = 0;
         int totalChannels = myChannels.size();
-        for (int i = startIndex; i < totalChannels && counter < CHANNELS_PER_PAGE; i++) {
-            M3UHolder mH = myChannels.get(i);
-			 String displayName = "Channel name: " + (mH.tvgName() != null && !mH.tvgName().isEmpty() ? mH.tvgName().trim() : mH.name().trim());
-			 String displayCode = "Channel code: " + mH.code().trim();
-			 int totalOfBoth = displayName.length() + displayCode.length();
-            int lengthOfSpaces = DISPLAY_LENGTH_ACCEPTED - totalOfBoth;
-            if (displayCode.length() == DISPLAY_CODE_LENGTH_ADJUSTMENT) {
-                lengthOfSpaces = lengthOfSpaces - 1;
-            }
-			 String space = StringHelper.createSpaces(lengthOfSpaces);
-			 int lengthTotal = displayName.length() + space.length() + displayCode.length();
-			 String underLine = StringHelper.createUnderLine(lengthTotal);
-			 System.out.println(displayName + space + displayCode);
-			 System.out.println(underLine);
-			 counter++;
+        int endIndex = Math.min(startIndex + StringHelper.CHANNELS_PER_PAGE, totalChannels);
+        // Calculate max channel name length for the entire list (once per session)
+        if (maxNameLength < 0) {
+            maxNameLength = StringHelper.getMaxChannelNameLength(myChannels);
         }
+        // Use the same method for displaying channels as in search, with logging and alignment
+        StringHelper.printChannelList(myChannels, startIndex, endIndex, System.out::println, maxNameLength);
         // If there are more channels, ask for input
-        if (startIndex + CHANNELS_PER_PAGE < totalChannels) {
+        if (endIndex < totalChannels) {
             ChannelSelectionResult result = waitForChannelInput(myChannels, restarted, text, destinationPath, startIndex);
             if (result == ChannelSelectionResult.RESTART_MAIN_PROMPT) {
                 clearScreen(); // Ensure list is shown again after failed search
@@ -359,27 +344,11 @@ public class RecorderHelper {
     }
 
     /**
-     * Displays up to 20 search results using UserInputHelper.
+     * Displays up to 20 search results using UserInputHelper, with dynamic alignment for channel code
      */
     private void displaySearchResults(java.util.List<M3UHolder> matches, String input) {
-        userIO.print(String.format(HelpText.SEARCH_RESULTS_HEADER, input));
-        int shown = 0;
-        for (M3UHolder mH : matches) {
-            if (shown >= 20) break;
-            String displayName = "Channel name: " + (mH.tvgName() != null && !mH.tvgName().isEmpty() ? mH.tvgName().trim() : mH.name().trim());
-            String displayCode = "Channel code: " + mH.code().trim();
-            int totalOfBoth = displayName.length() + displayCode.length();
-            int lengthOfSpaces = DISPLAY_LENGTH_ACCEPTED - totalOfBoth;
-            if (displayCode.length() == DISPLAY_CODE_LENGTH_ADJUSTMENT) {
-                lengthOfSpaces = lengthOfSpaces - 1;
-            }
-            String space = StringHelper.createSpaces(lengthOfSpaces);
-            int lengthTotal = displayName.length() + space.length() + displayCode.length();
-            String underLine = StringHelper.createUnderLine(lengthTotal);
-            userIO.print(displayName + space + displayCode);
-            userIO.print(underLine);
-            shown++;
-        }
+        // Always use the maxNameLength from the full list for search results
+        StringHelper.printChannelList(matches, 0, Math.min(matches.size(), StringHelper.CHANNELS_PER_PAGE), System.out::println, maxNameLength);
     }
 
     /**
@@ -463,13 +432,19 @@ public class RecorderHelper {
 	 * Clears the console screen based on operating system
 	 */
 	public static void clearScreen(){
-		
-		if (OS.contains("win")) {
-			myRunnable("cls", OS);
-        }else {
-        	System.out.print("\033\143"); // Only print to terminal, do not log
+        String os = System.getProperty("os.name").toLowerCase();
+        if (os.contains("win")) {
+            try {
+                new ProcessBuilder("cmd", "/c", "cls").inheritIO().start().waitFor();
+            } catch (Exception e) {
+                // Ignore errors, fallback to printing newlines
+                for (int i = 0; i < 50; i++) System.out.println();
+            }
+        } else {
+            System.out.print("\033");
+            System.out.print("\143"); // Only print to terminal, do not log
         }
-	}
+    }
 	
 	/**
 	 * Waits until the start time is reached
@@ -681,33 +656,8 @@ public class RecorderHelper {
         }
     }
 
-    private static void myRunnable(String command, String OS) {
-        LogHelper.Log("[STOP][DEBUG] Running myRunnable with command: '" + command + "' and OS: '" + OS + "'");
-        if (OS.contains("win")) {
-            try {
-                LogHelper.Log("[STOP][DEBUG] Windows: Starting process: cmd /c " + command);
-                Process p = new ProcessBuilder("cmd", "/c", command).inheritIO().start();
-                int exitCode = p.waitFor();
-                LogHelper.Log("[STOP][DEBUG] Windows process exited with exit code: " + exitCode);
-            } catch (InterruptedException | IOException e) {
-                LogHelper.LogError("Exception in RecorderHelper.myRunnable", e);
-            }
-        } else {
-            ProcessBuilder processBuilder = new ProcessBuilder();
-            processBuilder.command("bash", "-c", command);
-            try {
-                LogHelper.Log("[STOP][DEBUG] Linux: Starting process: bash -c '" + command + "'");
-                Process process = processBuilder.start();
-                int exitCode = process.waitFor();
-                LogHelper.Log("[STOP][DEBUG] Linux process exited with exit code: " + exitCode);
-            } catch (IOException e) {
-                LogHelper.LogError("Exception in RecorderHelper.myRunnable", e);
-            } catch (InterruptedException e) {
-                LogHelper.LogError("Exception in RecorderHelper.myRunnable", e);
-            }
-        }
-    }
-	
+    // Remove myRunnable method and all references to it
+
 	/**
 	 * Downloads M3U file from URL with progress percentage if possible
 	 * @param myUrl URL to download from
@@ -723,7 +673,7 @@ public class RecorderHelper {
             java.net.URLConnection conn = url.openConnection();
             int contentLength = conn.getContentLength();
             input = conn.getInputStream();
-            outputStream = new FileOutputStream(new File(path + fileSeparator + m3uName));
+            outputStream = new FileOutputStream(new File(path + File.separator + m3uName));
             byte[] bytes = new byte[BUFFER_SIZE];
         int read;
             long totalRead = 0;
