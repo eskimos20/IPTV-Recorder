@@ -64,27 +64,31 @@ java -jar target/iptv-recorder-1.0.0.jar config.properties "SVT1 News" "19:00" "
 ### Configuration
 All options are in `config.properties` (or can be overridden by environment variables):
 
-| Property         | Description                                      | Default                     |
-|------------------|--------------------------------------------------|-----------------------------|
-| destinationPath  | Directory for recordings                         | ./recordings                |
-| url              | IPTV service URL (if useM3UFile=false)           | (required)                  |
-| useFFMPEG        | true/false, use ffmpeg for recording (Linux only)| false                       |
-| useM3UFile       | true/false, use a local M3U file                 | false                       |
-| m3uFile          | Path to M3U file (if useM3UFile=true)            | (required if useM3UFile)    |
-| logFile          | Path to log file                                 | logs/iptv-recorder.log      |
-| timezone         | Timezone for date/time operations                | Europe/Stockholm            |
-| 24_hour_clock    | Use 24-hour clock format                         | true                        |
-| GROUP_TITLE      | Filter channels by group title (pipe-separated)  | (optional)                  |
-| SENDMAIL         | Enable email notifications                        | false                       |
-| SENDTO           | Email address to send notifications to           | (required if SENDMAIL=true) |
-| SENTFROM         | Email address to send from                       | (required if SENDMAIL=true) |
-| SMTPHOST         | SMTP server host                                 | smtp.gmail.com              |
-| SMTPPORT         | SMTP server port                                 | 465                         |
-| APPPASSWD        | App password for email authentication            | (required if SENDMAIL=true) |
+| Property         | Description                                      | Default                     | Required?                  |
+|------------------|--------------------------------------------------|-----------------------------|----------------------------|
+| destinationPath  | Directory for recordings                         | ./recordings                | Yes                        |
+| url              | IPTV service URL (if useM3UFile=false)           |                             | Yes                        |
+| useFFMPEG        | true/false, use ffmpeg for recording (Linux only)| false                       | Yes                        |
+| useM3UFile       | true/false, use a local M3U file                 | false                       | Yes                        |
+| m3uFile          | Path to M3U file (if useM3UFile=true)            |                             | Yes, if useM3UFile=true    |
+| recRetries       | Number of retries for scheduled recording        | 5                           | Yes                        |
+| recRetriesDelay  | Delay (in seconds) between retries               | 60                          | Yes                        |
+| logFile          | Path to log file                                 | iptv-recorder.log           | No                         |
+| timezone         | Timezone for date/time operations                | Europe/Stockholm            | No                         |
+| 24_hour_clock    | Use 24-hour clock format                         | true                        | No                         |
+| GROUP_TITLE      | Filter channels by group title (pipe-separated)  |                             | No                         |
+| SENDMAIL         | Enable email notifications                       | false                       | No                         |
+| SENDTO           | Email address to send notifications to           |                             | Yes, if SENDMAIL=true      |
+| SENTFROM         | Email address to send from                       |                             | Yes, if SENDMAIL=true      |
+| SMTPHOST         | SMTP server host                                 | smtp.gmail.com              | Yes, if SENDMAIL=true      |
+| SMTPPORT         | SMTP server port                                 | 465                         | Yes, if SENDMAIL=true      |
+| APPPASSWD        | App password for email authentication            |                             | Yes, if SENDMAIL=true      |
 
-**M3U files are now handled in memory or as temporary files. `destinationPath` is only for recordings.**
+**Note:**
+- All required parameters must be set, otherwise the program will not start.
+- You can override any property with an environment variable of the same name (case-insensitive).
 
-**Override any property with an environment variable of the same name (case-insensitive).**
+**M3U files are handled in memory or as temporary files. `destinationPath` is only for recordings.**
 
 ### Recording Modes
 
@@ -117,7 +121,7 @@ When `SENDMAIL=true` is configured:
 ### Resource Management
 - Uses Java `ExecutorService` for concurrency.
 - Graceful shutdown: all threads and resources are closed on exit.
-- Automatic retry mechanism for failed recordings (3 attempts with 30-second delays).
+- Automatic retry mechanism for failed recordings: the number of attempts and delay between attempts are fully configurable via `recRetries` and `recRetriesDelay` in `config.properties`.
 
 ### Troubleshooting
 - Check the log file for errors.
