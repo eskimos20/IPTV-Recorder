@@ -140,3 +140,55 @@ MIT License
 
 ### Developer
 The developer is not responsible for how this tool is used. It is the user’s responsibility to ensure that any recorded content does not violate copyright laws.
+
+## Resume Functionality for Scheduled Recordings
+
+If a stream ends or is dropped before the scheduled stop time, the recorder will automatically attempt to resume the recording. The process will:
+- Wait for 15 seconds between each resume attempt (this is hardcoded and not configurable)
+- Restart the recording process with the same parameters
+- Retry **unlimited times** until the scheduled stop time is reached
+- All resume attempts and failures are logged
+
+This ensures that temporary network issues or server drops do not cause the entire scheduled recording to be lost.
+
+**Note:**
+- The `recRetries` and `recRetriesDelay` parameters are **only used for initial process startup attempts** (i.e., if the ScheduledRecorder process fails to start due to an error). They do **not** limit or affect the number of resume attempts after a stream drop. Resume attempts are always unlimited with a 15 second delay.
+
+### Resume Parameters and Argument Order
+
+When the recorder is started (either initially or as a resume), the following arguments are passed to the `ScheduledRecorder` process in this exact order:
+
+1. `url` (stream URL)
+2. `outputPath` (destination path for recording)
+3. `startTime` (HH:mm)
+4. `stopTime` (HH:mm)
+5. `mode` ("ffmpeg" or "regular")
+6. `logConfigPath` (currently unused, pass empty string "")
+7. `tvgName` (channel display name)
+8. `timezone` (e.g., Europe/Stockholm)
+9. `is24Hour` (true/false)
+10. `logFile` (path to log file)
+11. `groupTitle` (channel group)
+12. `tvgId` (channel id)
+13. `recRetries` (number of retries)
+14. `recRetriesDelay` (delay between retries, in seconds)
+15. `tvgLogo` (URL to channel logo)
+16. `isResume` (true/false, indicates if this is a resume attempt)
+
+**Note:** All arguments must be provided in this order. The resume logic is fully automatic and does not require user intervention.
+
+### Example: Resume in Action
+
+If a stream is interrupted before the stop time, you will see log entries like:
+
+```
+[ERROR] [REGULAR] InputStream ended before stop time. Stream may have been dropped or closed by server.
+[WARNING] [REGULAR] ScheduledRecorder resume arguments:
+  [0]: http://...
+  [1]: /path/to/recordings/
+  ...
+  [15]: true
+[WARNING] [REGULAR] Started new ScheduledRecorder process for resume. Exiting current process.
+```
+
+The new process will continue the recording until the scheduled stop time or until all retries are exhausted.

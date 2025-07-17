@@ -33,8 +33,6 @@ public class RecorderHelper {
 	private String url = "";
 	private String errorMessage = "";
 	
-	// private static String OS = System.getProperty("os.name").toLowerCase(); // REMOVE
-	
 	// Add recording mode tracking
 	private RecordingMode recordingMode = RecordingMode.REGULAR;
 	
@@ -518,13 +516,15 @@ public class RecorderHelper {
 	 * @param filePath Destination path for the recording
 	 * @throws Exception if recording cannot be started
 	 */
-	public void startRecFFMPEG(String filePath) throws Exception {
+	public void startRecFFMPEG(String filePath, boolean isResume) throws Exception {
         recordingMode = RecordingMode.FFMPEG;
         validateRecordingSetup(this.url, filePath);
         String outputFile = createFileName(filePath, LogHelper.getTimeZone(), this.channelInfo);
-        // Download tvg-logo in the same folder as outputFile
-        java.io.File posterFile = new java.io.File(new java.io.File(outputFile).getParentFile(), "poster.jpg");
-        getLogo(this.channelInfo != null ? this.channelInfo.tvgLogo() : null, this.channelInfo != null ? this.channelInfo.tvgName() : null, posterFile);
+        // Only download tvg-logo if not resume
+        if (!isResume) {
+            java.io.File posterFile = new java.io.File(new java.io.File(outputFile).getParentFile(), "poster.jpg");
+            getLogo(this.channelInfo != null ? this.channelInfo.tvgLogo() : null, this.channelInfo != null ? this.channelInfo.tvgName() : null, posterFile);
+        }
         
         // Use ProcessBuilder with separate arguments to prevent command injection
         ProcessBuilder pb = new ProcessBuilder(
@@ -550,39 +550,64 @@ public class RecorderHelper {
     }
 	
 	/**
-	 * Starts regular recording using input/output streams
-	 * @param filePath Destination path for the recording
-	 * @throws Exception if recording cannot be started
+	 * Utför ett inspelningsförsök, returnerar true om streamen gick hela vägen till stopptid, annars false
 	 */
-	public void startRecRegular(String filePath) throws Exception {
-        recordingMode = RecordingMode.REGULAR;
-        validateRecordingSetup(this.url, filePath);
+	private boolean recordOnceRegular(String filePath, LocalTime targetTime) throws Exception {
         String outputFile = createFileName(filePath, LogHelper.getTimeZone(), this.channelInfo);
-        // Download tvg-logo in the same folder as outputFile
-        java.io.File posterFile = new java.io.File(new java.io.File(outputFile).getParentFile(), "poster.jpg");
-        getLogo(this.channelInfo != null ? this.channelInfo.tvgLogo() : null, this.channelInfo != null ? this.channelInfo.tvgName() : null, posterFile);
-        
-        LocalTime targetTime = LocalTime.parse(this.timeTo, TIME_FORMATTER);
-        
-        try (var input = java.net.URI.create(this.url).toURL().openStream();
+        java.net.URL urlObj = java.net.URI.create(this.url).toURL();
+        java.net.URLConnection conn = urlObj.openConnection();
+        conn.setReadTimeout(60_000); // 60 sekunder timeout
+        try (var input = conn.getInputStream();
              var outputStream = new java.io.FileOutputStream(new java.io.File(outputFile))) {
             byte[] bytes = new byte[BUFFER_SIZE];
             int read;
             while ((read = input.read(bytes)) != -1) {
                 outputStream.write(bytes, 0, read);
-                
                 // Check if we've reached the stop time
                 LocalTime currentTime = LocalTime.now();
                 if (currentTime.isAfter(targetTime) || currentTime.equals(targetTime)) {
                     break;
                 }
             }
-        } catch (java.net.MalformedURLException e) {
-            LogHelper.LogError(HelpText.MALFORMED_URL + this.url);
-            throw e;
-        } catch (java.io.IOException e) {
-            LogHelper.LogError(HelpText.IO_ERROR_DURING_REGULAR_RECORDING + e.getMessage());
-            throw e;
+            if (LocalTime.now().isBefore(targetTime)) {
+                LogHelper.LogError("[REGULAR] InputStream ended before stop time. Stream may have been dropped or closed by server.");
+                return false;
+            }
+            return true;
+        }
+    }
+	
+	/**
+	 * Starts regular recording using input/output streams
+	 * @param filePath Destination path for the recording
+	 * @throws Exception if recording cannot be started
+	 */
+	public void startRecRegular(String filePath, boolean isResume) throws Exception {
+        recordingMode = RecordingMode.REGULAR;
+        validateRecordingSetup(this.url, filePath);
+        // Only download tvg-logo if not resume
+        if (!isResume) {
+            java.io.File posterFile = new java.io.File(new java.io.File(createFileName(filePath, LogHelper.getTimeZone(), this.channelInfo)).getParentFile(), "poster.jpg");
+            getLogo(this.channelInfo != null ? this.channelInfo.tvgLogo() : null, this.channelInfo != null ? this.channelInfo.tvgName() : null, posterFile);
+        }
+
+        LocalTime targetTime = LocalTime.parse(this.timeTo, TIME_FORMATTER);
+
+        while (LocalTime.now().isBefore(targetTime)) {
+            try {
+                boolean success = recordOnceRegular(filePath, targetTime);
+                if (success) {
+                    break; // Done!
+                } else {
+                    resumeRecordingProcess(filePath);
+                    System.exit(1);
+                }
+            } catch (Exception e) {
+                LogHelper.LogError("[REGULAR] Exception during recording: " + e.getMessage(), e);
+                LogHelper.LogWarning("[REGULAR] Waiting 15 seconds before retrying resume...");
+                Thread.sleep(15_000);
+                // The loop continues and tries again
+            }
         }
     }
 	
@@ -780,10 +805,93 @@ public class RecorderHelper {
     private Process ffmpegProcess;
     private M3UHolder channelInfo;
 
+    // Add fields for new arguments
+    private String logConfigPath = "";
+    private String timezone = "Europe/Stockholm";
+    private boolean is24Hour = true;
+    private String logFile = "";
+    private String groupTitle = "";
+    private String tvgId = "";
+    private int recRetries = 3;
+    private int recRetriesDelay = 60;
+    private String tvgLogo = "";
+    private String tvgName = "";
+
+    // Getters and setters for new fields
+    public void setLogConfigPath(String logConfigPath) { this.logConfigPath = logConfigPath; }
+    public String getLogConfigPath() { return this.logConfigPath; }
+    public void setTimezone(String timezone) { this.timezone = timezone; }
+    public String getTimezone() { return this.timezone; }
+    public void setIs24Hour(boolean is24Hour) { this.is24Hour = is24Hour; }
+    public boolean getIs24Hour() { return this.is24Hour; }
+    public void setLogFile(String logFile) { this.logFile = logFile; }
+    public String getLogFile() { return this.logFile; }
+    public void setGroupTitle(String groupTitle) { this.groupTitle = groupTitle; }
+    public String getGroupTitle() { return this.groupTitle; }
+    public void setTvgId(String tvgId) { this.tvgId = tvgId; }
+    public String getTvgId() { return this.tvgId; }
+    public void setRecRetries(int recRetries) { this.recRetries = recRetries; }
+    public int getRecRetries() { return this.recRetries; }
+    public void setRecRetriesDelay(int recRetriesDelay) { this.recRetriesDelay = recRetriesDelay; }
+    public int getRecRetriesDelay() { return this.recRetriesDelay; }
+    public void setTvgLogo(String tvgLogo) { this.tvgLogo = tvgLogo; }
+    public String getTvgLogo() { return this.tvgLogo; }
+    public void setTvgName(String tvgName) { this.tvgName = tvgName; }
+    public String getTvgName() { return this.tvgName; }
+
+    // Build argument list for ScheduledRecorder process (with tvgName in the correct position), with resume flag last
+    private java.util.List<String> buildScheduledRecorderArgs(String filePath, boolean isResume) {
+        java.util.List<String> args = new java.util.ArrayList<>();
+        args.add(this.url); // 0
+        args.add(filePath); // 1
+        args.add(this.timeFrom); // 2
+        args.add(this.timeTo); // 3
+        args.add("regular"); // 4
+        args.add(this.logConfigPath != null ? this.logConfigPath : ""); // 5
+        args.add(this.tvgName != null ? this.tvgName : (this.channelInfo != null ? this.channelInfo.tvgName() : "")); // 6
+        args.add(this.timezone != null ? this.timezone : "Europe/Stockholm"); // 7
+        args.add(Boolean.toString(this.is24Hour)); // 8
+        args.add(this.logFile != null ? this.logFile : ""); // 9
+        args.add(this.groupTitle != null ? this.groupTitle : (this.channelInfo != null ? this.channelInfo.groupTitle() : "")); // 10
+        args.add(this.tvgId != null ? this.tvgId : (this.channelInfo != null ? this.channelInfo.tvgId() : "")); // 11
+        args.add(Integer.toString(this.recRetries)); // 12
+        args.add(Integer.toString(this.recRetriesDelay)); // 13
+        args.add(this.tvgLogo != null ? this.tvgLogo : (this.channelInfo != null ? this.channelInfo.tvgLogo() : "")); // 14
+        args.add(Boolean.toString(isResume)); // 15
+        return args;
+    }
+
+    // Resume ScheduledRecorder process med resume-flagga
+    private void resumeRecordingProcess(String filePath) throws Exception {
+        try {
+            java.util.List<String> resumeArgs = new java.util.ArrayList<>();
+            resumeArgs.add("java");
+            resumeArgs.add("-cp");
+            resumeArgs.add(System.getProperty("java.class.path"));
+            resumeArgs.add("se.eskimos.recorder.ScheduledRecorder");
+            java.util.List<String> scheduledArgs = buildScheduledRecorderArgs(filePath, true);
+            resumeArgs.addAll(scheduledArgs);
+            ProcessBuilder pb = new ProcessBuilder(resumeArgs);
+            pb.inheritIO();
+            Process process = pb.start();
+            LogHelper.LogWarning("[REGULAR] Started new ScheduledRecorder process for resume. Exiting current process.");
+            Thread.sleep(2000);
+            try {
+                int exitCode = process.exitValue();
+                LogHelper.LogError("[REGULAR] Resumed process exited immediately with code: " + exitCode);
+            } catch (IllegalThreadStateException itse) {
+                LogHelper.Log("[REGULAR] Resumed process is running.");
+            }
+        } catch (Exception ex) {
+            System.err.println("Undantag i resumeRecordingProcess: " + ex.getMessage());
+            LogHelper.LogError("[REGULAR] Failed to resume recording: " + ex.getMessage(), ex);
+            throw ex;
+        }
+    }
+
     // Download a logo image from a URL and save to dest (no progress print)
     public static void getLogo(String logoUrl, String channelName, File dest) {
         if (logoUrl != null && !logoUrl.isEmpty() && (logoUrl.startsWith("http://") || logoUrl.startsWith("https://"))) {
-            LogHelper.Log("Attempting to download tvg-logo: " + logoUrl + " to " + dest.getAbsolutePath());
             java.io.InputStream input = null;
             java.io.FileOutputStream outputStream = null;
             try {
@@ -795,8 +903,9 @@ public class RecorderHelper {
                 while ((read = input.read(bytes)) != -1) {
                     outputStream.write(bytes, 0, read);
                 }
+                LogHelper.Log("Downloaded tvg-logo for channel: " + (channelName != null ? channelName : "?"));
             } catch (Exception e) {
-                LogHelper.LogWarning("Could not download tvg-logo for channel: " + (channelName != null ? channelName : "?") + ". " + e.getMessage());
+                LogHelper.LogWarning("Failed to download tvg-logo for channel: " + (channelName != null ? channelName : "?") + ". " + e.getMessage());
             } finally {
                 try { if (input != null) input.close(); } catch (Exception ignored) {}
                 try { if (outputStream != null) outputStream.close(); } catch (Exception ignored) {}
