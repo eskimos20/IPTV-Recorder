@@ -444,25 +444,30 @@ public class StartRecorder {
 		LogHelper.setTimeZone(java.time.ZoneId.of(timezone));
 		
 		java.util.List<String> cmd = new java.util.ArrayList<>();
-		cmd.add(javaBin); cmd.add("-cp"); cmd.add(classpath);
-		cmd.add("se.eskimos.recorder.ScheduledRecorder");
-		cmd.add(rH.getUrl());                        // 0
-		cmd.add(config.getDestinationPath());        // 1
-		cmd.add(rH.getTimeFrom());                   // 2
-		cmd.add(rH.getTimeTo());                     // 3
-		cmd.add(mode);                               // 4
-		cmd.add(channelDisplayName);                 // 5
-		cmd.add(timezone);                           // 6
-		cmd.add(Boolean.toString(is24Hour));         // 7
-		cmd.add(logFile == null ? "" : logFile);     // 8
-		cmd.add(selectedChannel != null ? selectedChannel.groupTitle() : ""); // 9
-		cmd.add(selectedChannel != null ? selectedChannel.tvgId() : "");      // 10
-		// Add recRetries and recRetriesDelay as arguments (11, 12)
-		cmd.add(Integer.toString(recRetries)); // 11
-		cmd.add(Integer.toString(recRetriesDelay)); // 12
-		// Add tvgLogo as argument 13
-		cmd.add(selectedChannel != null ? selectedChannel.tvgLogo() : ""); // 13
+		// Bygg argumentlistan i exakt rätt ordning för ScheduledRecorder
+		cmd.clear();
+		cmd.add(javaBin); // 0
+		cmd.add("-cp"); // 1
+		cmd.add(classpath); // 2
+		cmd.add("se.eskimos.recorder.ScheduledRecorder"); // 3
+		cmd.add(rH.getUrl());                        // 4 (args[0])
+		cmd.add(config.getDestinationPath());        // 5 (args[1])
+		cmd.add(rH.getTimeFrom());                   // 6 (args[2])
+		cmd.add(rH.getTimeTo());                     // 7 (args[3])
+		cmd.add(mode);                               // 8 (args[4])
+		cmd.add("");                                // 9 (args[5], logConfigPath, alltid tom)
+		cmd.add(selectedChannel != null ? selectedChannel.tvgName() : ""); // 10 (args[6])
+		cmd.add(config.getTimezone());               // 11 (args[7])
+		cmd.add(Boolean.toString(is24Hour));         // 12 (args[8])
+		cmd.add(logFile == null ? "" : logFile);     // 13 (args[9])
+		cmd.add(selectedChannel != null ? selectedChannel.groupTitle() : ""); // 14 (args[10])
+		cmd.add(selectedChannel != null ? selectedChannel.tvgId() : "");      // 15 (args[11])
+		cmd.add(Integer.toString(recRetries));       // 16 (args[12])
+		cmd.add(Integer.toString(recRetriesDelay));  // 17 (args[13])
+		cmd.add(selectedChannel != null ? selectedChannel.tvgLogo() : ""); // 18 (args[14])
+		cmd.add("false"); // 19 (args[15], isResume, alltid false vid första start)
 		
+
 		ProcessBuilder pb = new ProcessBuilder(cmd);
 		pb.inheritIO(); // Optional: inherit IO for debug, or redirect to log
 		Process process = pb.start();

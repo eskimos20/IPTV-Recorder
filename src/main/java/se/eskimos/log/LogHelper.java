@@ -154,6 +154,7 @@ public class LogHelper {
      */
     public static void LogError(String message, Exception e) {
         logInternal("ERROR", message);
+        LogCritical(message + "\n" + printStackTrace(e));
         MailExceptionBuffer.addException("LogHelper.LogError", e);
     }
 
@@ -172,18 +173,43 @@ public class LogHelper {
      */
     private static void logInternal(String level, String message) {
         String formatted = formatMessage(level, message);
+        boolean fileLogged = false;
         synchronized (lock) {
-            // File only, no console
+            if (fileWriter != null) {
+                try {
+                    fileWriter.write(formatted);
+                    fileWriter.newLine();
+                    fileWriter.flush();
+                    fileLogged = true;
+                } catch (IOException e) {
+                    System.err.println("[LogHelper] Failed to write to log file: " + e.getMessage());
+                    System.err.println(formatted);
+                }
+            }
+        }
+        // Om fil-loggning misslyckades, logga alltid till System.err
+        if (!fileLogged) {
+            System.err.println(formatted);
+        }
+    }
+
+    /**
+     * Loggar ett kritiskt fel till både loggfil och terminal
+     */
+    public static void LogCritical(String message) {
+        String formatted = formatMessage("CRITICAL", message);
+        synchronized (lock) {
             if (fileWriter != null) {
                 try {
                     fileWriter.write(formatted);
                     fileWriter.newLine();
                     fileWriter.flush();
                 } catch (IOException e) {
-                    System.err.println("[LogHelper] Failed to write to log file: " + e.getMessage());
+                    // Ignorera, logga ändå till terminal
                 }
             }
         }
+        System.err.println(formatted);
     }
 
     /**
@@ -191,7 +217,7 @@ public class LogHelper {
      * @param e The exception to convert
      * @return String representation of the stack trace
      */
-    public static String printStackTrace(Exception e) {
+    public static String printStackTrace(Throwable e) {
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
         e.printStackTrace(pw);
