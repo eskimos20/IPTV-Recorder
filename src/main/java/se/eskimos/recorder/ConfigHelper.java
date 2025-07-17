@@ -27,6 +27,9 @@ public class ConfigHelper {
     private String smtpHost;
     private String smtpPort;
     private String appPasswd;
+    // Recording retry config
+    private int recRetries;
+    private int recRetriesDelay;
 
     /**
      * Creates a new ConfigHelper instance and loads configuration from the specified file
@@ -45,6 +48,17 @@ public class ConfigHelper {
         this.smtpHost = props.getProperty("SMTPHOST", "");
         this.smtpPort = props.getProperty("SMTPPORT", "");
         this.appPasswd = props.getProperty("APPPASSWD", "");
+        // Read retry config with defaults
+        try {
+            this.recRetries = Integer.parseInt(props.getProperty("recRetries", "5"));
+        } catch (NumberFormatException e) {
+            this.recRetries = 5;
+        }
+        try {
+            this.recRetriesDelay = Integer.parseInt(props.getProperty("recRetriesDelay", "60"));
+        } catch (NumberFormatException e) {
+            this.recRetriesDelay = 60;
+        }
     }
 
     /**
@@ -140,6 +154,20 @@ public class ConfigHelper {
     public String getGroupTitle() {
         return getEnvOrProp("GROUP_TITLE", DEFAULT_EMPTY_STRING);
     }
+
+    /**
+     * Gets the number of retries for scheduled recording
+     */
+    public int getRecRetries() {
+        return recRetries;
+    }
+
+    /**
+     * Gets the delay (in seconds) between retries for scheduled recording
+     */
+    public int getRecRetriesDelay() {
+        return recRetriesDelay;
+    }
     
     /**
      * Gets the group titles as an array
@@ -210,4 +238,5 @@ public class ConfigHelper {
     public String getSmtpHost() { return smtpHost; }
     public String getSmtpPort() { return smtpPort; }
     public String getAppPasswd() { return appPasswd; }
+
 } 

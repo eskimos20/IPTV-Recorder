@@ -7,6 +7,7 @@ import java.time.ZonedDateTime;
 import java.time.ZoneId;
 
 public class ScheduledRecorder {
+
     public static void main(String[] args) {
         if (args.length > 0 && ("--help".equals(args[0]) || "-h".equals(args[0]))) {
             System.out.println("Usage: java -cp ... ScheduledRecorder <url> <outputPath> <startTime> <stopTime> <ffmpeg|regular> <logConfigPath> <tvgName> [timezone] [is24Hour] [logFile] [groupTitle] [tvgId]\n" +
@@ -29,6 +30,8 @@ public class ScheduledRecorder {
         String logFile = args.length > 8 ? args[8] : null;
         String groupTitle = args.length > 9 ? args[9] : "";
         String tvgId = args.length > 10 ? args[10] : "";
+        Integer recRetries = Integer.parseInt(args[11]);
+        Integer recRetriesDelay = Integer.parseInt(args[12]) * 1000;
         M3UHolder channelInfo = new M3UHolder(tvgName, url, "", groupTitle, tvgId, tvgName);
         // Only set log file if provided as argument
         if (logFile != null && !logFile.isEmpty()) {
@@ -61,22 +64,21 @@ public class ScheduledRecorder {
             helper.setTimeFrom(startTime);
             helper.setTimeTo(stopTime);
             helper.setChannelInfo(channelInfo);
-            int maxRetries = 3;
             int retryCount = 0;
             boolean started = false;
-            while (retryCount < maxRetries && !started) {
+            while (retryCount < recRetries && !started) {
                 try {
-                    LogHelper.Log("[SCHEDULER] Attempting to start recording (attempt " + (retryCount+1) + "/" + maxRetries + ") for channel: " + tvgName);
+                    LogHelper.Log("[SCHEDULER] Attempting to start recording (attempt " + (retryCount+1) + "/" + recRetries + ") for channel: " + tvgName);
                     helper.startRecFFMPEG(outputPath);
                     started = true;
                 } catch (Exception e) {
                     retryCount++;
                     started = false;
-                    if (retryCount < maxRetries) {
-                        LogHelper.LogWarning("[SCHEDULER] Failed to start FFMPEG recording (attempt " + retryCount + "/" + maxRetries + ") for channel: " + tvgName + ". Retrying in 30 seconds. Error: " + LogHelper.printStackTrace(e));
-                        try { Thread.sleep(30_000); } catch (Exception t) { LogHelper.LogError("[SCHEDULER] Error while waiting between FFMPEG attempts: " + LogHelper.printStackTrace(t)); }
+                    if (retryCount < recRetries) {
+                        LogHelper.LogWarning("[SCHEDULER] Failed to start FFMPEG recording (attempt " + retryCount + "/" + recRetries + ") for channel: " + tvgName + ". Retrying in " + (recRetriesDelay/1000) + " seconds. Error: " + LogHelper.printStackTrace(e));
+                        try { Thread.sleep(recRetriesDelay); } catch (Exception t) { LogHelper.LogError("[SCHEDULER] Error while waiting between FFMPEG attempts: " + LogHelper.printStackTrace(t)); }
                     } else {
-                        LogHelper.LogError("[SCHEDULER] Could not start FFMPEG recording after " + maxRetries + " attempts for channel: " + tvgName + ". Error: " + LogHelper.printStackTrace(e));
+                        LogHelper.LogError("[SCHEDULER] Could not start FFMPEG recording after " + recRetries + " attempts for channel: " + tvgName + ". Error: " + LogHelper.printStackTrace(e));
                         System.exit(1);
                     }
                 }
@@ -115,11 +117,10 @@ public class ScheduledRecorder {
             }
         } else {
             // Regular-mode
-            int maxRetries = 3;
             int retryCount = 0;
             boolean started = false;
             String sanitizedChannel = null;
-            while (retryCount < maxRetries && !started) {
+            while (retryCount < recRetries && !started) {
                 try {
                     RecorderHelper helperReg = new RecorderHelper(new UserInputHelper(new java.util.Scanner(System.in), System.out));
                     helperReg.setUrl(url);
@@ -159,11 +160,11 @@ public class ScheduledRecorder {
                 } catch (Exception e) {
                     retryCount++;
                     started = false;
-                    if (retryCount < maxRetries) {
-                        LogHelper.LogWarning("[SCHEDULER] Failed to start REGULAR recording (attempt " + retryCount + "/" + maxRetries + ") for channel: " + tvgName + ". Retrying in 30 seconds. Error: " + LogHelper.printStackTrace(e));
-                        try { Thread.sleep(30_000); } catch (Exception t) { LogHelper.LogError("[SCHEDULER] Error while waiting between REGULAR attempts: " + LogHelper.printStackTrace(t)); }
+                    if (retryCount < recRetries) {
+                        LogHelper.LogWarning("[SCHEDULER] Failed to start REGULAR recording (attempt " + retryCount + "/" + recRetries + ") for channel: " + tvgName + ". Retrying in " + (recRetriesDelay/1000) + " seconds. Error: " + LogHelper.printStackTrace(e));
+                        try { Thread.sleep(recRetriesDelay); } catch (Exception t) { LogHelper.LogError("[SCHEDULER] Error while waiting between REGULAR attempts: " + LogHelper.printStackTrace(t)); }
                     } else {
-                        LogHelper.LogError("[SCHEDULER] Could not start REGULAR recording after " + maxRetries + " attempts for channel: " + tvgName + ". Error: " + LogHelper.printStackTrace(e));
+                        LogHelper.LogError("[SCHEDULER] Could not start REGULAR recording after " + recRetries + " attempts for channel: " + tvgName + ". Error: " + LogHelper.printStackTrace(e));
                         // Try to delete the created folder if empty
                         try {
                             String channelNameToDelete = sanitizedChannel != null ? sanitizedChannel : tvgName;

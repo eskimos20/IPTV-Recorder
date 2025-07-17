@@ -233,17 +233,98 @@ public class StartRecorder {
 	 * @throws IllegalArgumentException if validation fails
 	 */
 	private static void validateConfiguration(ConfigHelper config, UserInputHelper userIO) {
-		if (!config.useM3UFile() && (config.getUrl() == null || config.getUrl().isEmpty())) {
+		// destinationPath
+		String destinationPath = config.getDestinationPath();
+		if (destinationPath == null || destinationPath.isEmpty()) {
+			String error = "Missing required config: destinationPath";
+			LogHelper.LogError(error);
+			userIO.print(error);
+			throw new IllegalArgumentException(error);
+		}
+		// url
+		String url = config.getUrl();
+		if (url == null || url.isEmpty()) {
 			String error = "Missing required config: url";
 			LogHelper.LogError(error);
 			userIO.print(error);
 			throw new IllegalArgumentException(error);
 		}
-		if (config.useM3UFile() && (config.getM3UFile() == null || config.getM3UFile().isEmpty())) {
-			String error = "Missing required config: m3uFile";
+		// useFFMPEG
+		String useFFMPEG = System.getenv("USEFFMPEG");
+		if (useFFMPEG == null) useFFMPEG = config.useFFMPEG() ? "true" : "false";
+		if (!useFFMPEG.equalsIgnoreCase("true") && !useFFMPEG.equalsIgnoreCase("false")) {
+			String error = "Missing or invalid config: useFFMPEG (must be true or false)";
 			LogHelper.LogError(error);
 			userIO.print(error);
 			throw new IllegalArgumentException(error);
+		}
+		// useM3UFile
+		String useM3UFile = System.getenv("USEM3UFILE");
+		if (useM3UFile == null) useM3UFile = config.useM3UFile() ? "true" : "false";
+		if (!useM3UFile.equalsIgnoreCase("true") && !useM3UFile.equalsIgnoreCase("false")) {
+			String error = "Missing or invalid config: useM3UFile (must be true or false)";
+			LogHelper.LogError(error);
+			userIO.print(error);
+			throw new IllegalArgumentException(error);
+		}
+		// Om useM3UFile=true så är m3uFile obligatorisk
+		if (useM3UFile.equalsIgnoreCase("true")) {
+			String m3uFile = config.getM3UFile();
+			if (m3uFile == null || m3uFile.isEmpty()) {
+				String error = "Missing required config: m3uFile (required when useM3UFile=true)";
+				LogHelper.LogError(error);
+				userIO.print(error);
+				throw new IllegalArgumentException(error);
+			}
+		}
+		// recRetries
+		int recRetries = config.getRecRetries();
+		if (recRetries <= 0) {
+			String error = "Missing or invalid config: recRetries (måste vara > 0)";
+			LogHelper.LogError(error);
+			userIO.print(error);
+			throw new IllegalArgumentException(error);
+		}
+		// recRetriesDelay
+		int recRetriesDelay = config.getRecRetriesDelay();
+		if (recRetriesDelay <= 0) {
+			String error = "Missing or invalid config: recRetriesDelay (måste vara > 0)";
+			LogHelper.LogError(error);
+			userIO.print(error);
+			throw new IllegalArgumentException(error);
+		}
+		// If sendmail=true then alla other fields are mandatory
+		if (config.isSendMail()) {
+			if (config.getSendTo() == null || config.getSendTo().isEmpty()) {
+				String error = "Missing required config: SENDTO (required when SENDMAIL=true)";
+				LogHelper.LogError(error);
+				userIO.print(error);
+				throw new IllegalArgumentException(error);
+			}
+			if (config.getSentFrom() == null || config.getSentFrom().isEmpty()) {
+				String error = "Missing required config: SENTFROM (required when SENDMAIL=true)";
+				LogHelper.LogError(error);
+				userIO.print(error);
+				throw new IllegalArgumentException(error);
+			}
+			if (config.getSmtpHost() == null || config.getSmtpHost().isEmpty()) {
+				String error = "Missing required config: SMTPHOST (required when SENDMAIL=true)";
+				LogHelper.LogError(error);
+				userIO.print(error);
+				throw new IllegalArgumentException(error);
+			}
+			if (config.getSmtpPort() == null || config.getSmtpPort().isEmpty()) {
+				String error = "Missing required config: SMTPPORT (required when SENDMAIL=true)";
+				LogHelper.LogError(error);
+				userIO.print(error);
+				throw new IllegalArgumentException(error);
+			}
+			if (config.getAppPasswd() == null || config.getAppPasswd().isEmpty()) {
+				String error = "Missing required config: APPPASSWD (required when SENDMAIL=true)";
+				LogHelper.LogError(error);
+				userIO.print(error);
+				throw new IllegalArgumentException(error);
+			}
 		}
 	}
 	
@@ -346,6 +427,10 @@ public class StartRecorder {
 	 * @throws Exception if process start fails
 	 */
 	private static void startScheduledRecorder(RecorderHelper rH, ConfigHelper config, String channelDisplayName, M3UHolder selectedChannel) throws Exception {
+		// Parametrar är redan validerade i validateConfiguration
+		int recRetries = config.getRecRetries();
+		int recRetriesDelay = config.getRecRetriesDelay();
+
 		String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
 		String classpath = System.getProperty("java.class.path");
 		String mode = config.useFFMPEG() ? "ffmpeg" : "regular";
@@ -372,6 +457,9 @@ public class StartRecorder {
 		cmd.add(logFile == null ? "" : logFile);     // 8
 		cmd.add(selectedChannel != null ? selectedChannel.groupTitle() : ""); // 9
 		cmd.add(selectedChannel != null ? selectedChannel.tvgId() : "");      // 10
+		// Add recRetries and recRetriesDelay as arguments (11, 12)
+		cmd.add(Integer.toString(recRetries)); // 11
+		cmd.add(Integer.toString(recRetriesDelay)); // 12
 		
 		ProcessBuilder pb = new ProcessBuilder(cmd);
 		pb.inheritIO(); // Optional: inherit IO for debug, or redirect to log
