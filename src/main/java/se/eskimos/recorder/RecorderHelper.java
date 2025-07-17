@@ -270,6 +270,11 @@ public class RecorderHelper {
                 } else {
                     this.timeFrom = "";
                 }
+                // After channel selection, ensure all relevant fields are set from the selected channel
+                this.channelInfo = mH;
+                this.tvgName = mH.tvgName();
+                this.tvgId = mH.tvgId();
+                this.groupTitle = mH.groupTitle();
                 return true;
             }
         }
@@ -326,6 +331,11 @@ public class RecorderHelper {
                             } else {
                                 this.timeFrom = "";
                             }
+                            // After channel selection, ensure all relevant fields are set from the selected channel
+                            this.channelInfo = mH;
+                            this.tvgName = mH.tvgName();
+                            this.tvgId = mH.tvgId();
+                            this.groupTitle = mH.groupTitle();
                             return ChannelSelectionResult.CHANNEL_SELECTED;
                         }
                     }
@@ -839,24 +849,27 @@ public class RecorderHelper {
     public void setTvgName(String tvgName) { this.tvgName = tvgName; }
     public String getTvgName() { return this.tvgName; }
 
-    // Build argument list for ScheduledRecorder process (with tvgName in the correct position), with resume flag last
-    private java.util.List<String> buildScheduledRecorderArgs(String filePath, boolean isResume) {
+    /**
+     * Builds the argument list for ScheduledRecorder using the original channelInfo and all required parameters.
+     * This method is the single source of truth for argument construction.
+     */
+    public static java.util.List<String> buildScheduledRecorderArgsFromChannelInfo(M3UHolder channelInfo, String url, String filePath, String timeFrom, String timeTo, String logConfigPath, String timezone, boolean is24Hour, String logFile, int recRetries, int recRetriesDelay, boolean isResume) {
         java.util.List<String> args = new java.util.ArrayList<>();
-        args.add(this.url); // 0
+        args.add(url); // 0
         args.add(filePath); // 1
-        args.add(this.timeFrom); // 2
-        args.add(this.timeTo); // 3
+        args.add(timeFrom); // 2
+        args.add(timeTo); // 3
         args.add("regular"); // 4
-        args.add(this.logConfigPath != null ? this.logConfigPath : ""); // 5
-        args.add(this.tvgName != null ? this.tvgName : (this.channelInfo != null ? this.channelInfo.tvgName() : "")); // 6
-        args.add(this.timezone != null ? this.timezone : "Europe/Stockholm"); // 7
-        args.add(Boolean.toString(this.is24Hour)); // 8
-        args.add(this.logFile != null ? this.logFile : ""); // 9
-        args.add(this.groupTitle != null ? this.groupTitle : (this.channelInfo != null ? this.channelInfo.groupTitle() : "")); // 10
-        args.add(this.tvgId != null ? this.tvgId : (this.channelInfo != null ? this.channelInfo.tvgId() : "")); // 11
-        args.add(Integer.toString(this.recRetries)); // 12
-        args.add(Integer.toString(this.recRetriesDelay)); // 13
-        args.add(this.tvgLogo != null ? this.tvgLogo : (this.channelInfo != null ? this.channelInfo.tvgLogo() : "")); // 14
+        args.add(logConfigPath != null ? logConfigPath : ""); // 5
+        args.add(channelInfo != null && channelInfo.tvgName() != null ? channelInfo.tvgName() : ""); // 6 (tvgName)
+        args.add(timezone != null ? timezone : "Europe/Stockholm"); // 7
+        args.add(Boolean.toString(is24Hour)); // 8
+        args.add(logFile != null ? logFile : ""); // 9
+        args.add(channelInfo != null && channelInfo.groupTitle() != null ? channelInfo.groupTitle() : ""); // 10 (groupTitle)
+        args.add(channelInfo != null && channelInfo.tvgId() != null ? channelInfo.tvgId() : ""); // 11 (tvgId)
+        args.add(Integer.toString(recRetries)); // 12
+        args.add(Integer.toString(recRetriesDelay)); // 13
+        args.add(channelInfo != null && channelInfo.tvgLogo() != null ? channelInfo.tvgLogo() : ""); // 14 (tvgLogo)
         args.add(Boolean.toString(isResume)); // 15
         return args;
     }
@@ -869,7 +882,8 @@ public class RecorderHelper {
             resumeArgs.add("-cp");
             resumeArgs.add(System.getProperty("java.class.path"));
             resumeArgs.add("se.eskimos.recorder.ScheduledRecorder");
-            java.util.List<String> scheduledArgs = buildScheduledRecorderArgs(filePath, true);
+            java.util.List<String> scheduledArgs = buildScheduledRecorderArgsFromChannelInfo(
+                this.channelInfo, this.url, filePath, this.timeFrom, this.timeTo, this.logConfigPath, this.timezone, this.is24Hour, this.logFile, this.recRetries, this.recRetriesDelay, true);
             resumeArgs.addAll(scheduledArgs);
             ProcessBuilder pb = new ProcessBuilder(resumeArgs);
             pb.inheritIO();
