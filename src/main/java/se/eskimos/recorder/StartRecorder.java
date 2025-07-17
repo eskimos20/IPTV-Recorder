@@ -460,6 +460,8 @@ public class StartRecorder {
 		// Add recRetries and recRetriesDelay as arguments (11, 12)
 		cmd.add(Integer.toString(recRetries)); // 11
 		cmd.add(Integer.toString(recRetriesDelay)); // 12
+		// Add tvgLogo as argument 13
+		cmd.add(selectedChannel != null ? selectedChannel.tvgLogo() : ""); // 13
 		
 		ProcessBuilder pb = new ProcessBuilder(cmd);
 		pb.inheritIO(); // Optional: inherit IO for debug, or redirect to log

@@ -18,11 +18,13 @@ public class M3UParser {
 	private static final String GROUP_TITLE_PATTERN = "group-title=\"(.*?)\"";
 	private static final String TVG_ID_PATTERN = "tvg-id=\"(.*?)\"";
 	private static final String TVG_NAME_PATTERN = "tvg-name=\"(.*?)\"";
+	private static final String TVG_LOGO_PATTERN = "tvg-logo=\"(.*?)\"";
 	
 	// Static compiled patterns for efficiency
 	private static final Pattern GROUP_TITLE_REGEX = Pattern.compile(GROUP_TITLE_PATTERN, Pattern.CASE_INSENSITIVE);
 	private static final Pattern TVG_ID_REGEX = Pattern.compile(TVG_ID_PATTERN, Pattern.CASE_INSENSITIVE);
 	private static final Pattern TVG_NAME_REGEX = Pattern.compile(TVG_NAME_PATTERN, Pattern.CASE_INSENSITIVE);
+	private static final Pattern TVG_LOGO_REGEX = Pattern.compile(TVG_LOGO_PATTERN, Pattern.CASE_INSENSITIVE);
 
 	public M3UParser() throws Exception {
 
@@ -45,12 +47,14 @@ public class M3UParser {
 				String groupTitle = "";
 				String tvgId = "";
 				String tvgName = "";
+                String tvgLogo = "";
 				while ((line = br.readLine()) != null) {
 					if (line.startsWith(EXTINF_PREFIX)) {
 						name = extractChannelName(line);
 						groupTitle = extractGroupTitle(line);
 						tvgId = extractTvgId(line);
 						tvgName = extractTvgName(line);
+                        tvgLogo = extractTvgLogo(line);
 						// Next line should be the URL
 						url = br.readLine();
 						if (url != null && !url.trim().isEmpty()) {
@@ -62,7 +66,7 @@ public class M3UParser {
 							}
 							code = lastBigInteger(urlForCode).toString();
 							// --- End new logic ---
-							myArray.add(new M3UHolder(name, url, code, groupTitle, tvgId, tvgName));
+							myArray.add(new M3UHolder(name, url, code, groupTitle, tvgId, tvgName, tvgLogo));
 						}
 					}
 				}
@@ -161,6 +165,17 @@ public class M3UParser {
         }
         
         Matcher matcher = TVG_NAME_REGEX.matcher(extinfLine);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return "";
+    }
+
+    private static String extractTvgLogo(String extinfLine) {
+        if (extinfLine == null || extinfLine.isEmpty()) {
+            return "";
+        }
+        Matcher matcher = TVG_LOGO_REGEX.matcher(extinfLine);
         if (matcher.find()) {
             return matcher.group(1).trim();
         }

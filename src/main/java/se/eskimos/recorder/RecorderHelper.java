@@ -272,7 +272,6 @@ public class RecorderHelper {
                 } else {
                     this.timeFrom = "";
                 }
-                createFileName(destinationPath, LogHelper.getTimeZone(), mH);
                 return true;
             }
         }
@@ -329,7 +328,6 @@ public class RecorderHelper {
                             } else {
                                 this.timeFrom = "";
                             }
-                            createFileName(destinationPath, LogHelper.getTimeZone(), mH);
                             return ChannelSelectionResult.CHANNEL_SELECTED;
                         }
                     }
@@ -524,6 +522,9 @@ public class RecorderHelper {
         recordingMode = RecordingMode.FFMPEG;
         validateRecordingSetup(this.url, filePath);
         String outputFile = createFileName(filePath, LogHelper.getTimeZone(), this.channelInfo);
+        // Download tvg-logo in the same folder as outputFile
+        java.io.File posterFile = new java.io.File(new java.io.File(outputFile).getParentFile(), "poster.jpg");
+        getLogo(this.channelInfo != null ? this.channelInfo.tvgLogo() : null, this.channelInfo != null ? this.channelInfo.tvgName() : null, posterFile);
         
         // Use ProcessBuilder with separate arguments to prevent command injection
         ProcessBuilder pb = new ProcessBuilder(
@@ -556,11 +557,15 @@ public class RecorderHelper {
 	public void startRecRegular(String filePath) throws Exception {
         recordingMode = RecordingMode.REGULAR;
         validateRecordingSetup(this.url, filePath);
+        String outputFile = createFileName(filePath, LogHelper.getTimeZone(), this.channelInfo);
+        // Download tvg-logo in the same folder as outputFile
+        java.io.File posterFile = new java.io.File(new java.io.File(outputFile).getParentFile(), "poster.jpg");
+        getLogo(this.channelInfo != null ? this.channelInfo.tvgLogo() : null, this.channelInfo != null ? this.channelInfo.tvgName() : null, posterFile);
         
         LocalTime targetTime = LocalTime.parse(this.timeTo, TIME_FORMATTER);
         
         try (var input = java.net.URI.create(this.url).toURL().openStream();
-             var outputStream = new java.io.FileOutputStream(new java.io.File(createFileName(filePath, LogHelper.getTimeZone(), this.channelInfo)))) {
+             var outputStream = new java.io.FileOutputStream(new java.io.File(outputFile))) {
             byte[] bytes = new byte[BUFFER_SIZE];
             int read;
             while ((read = input.read(bytes)) != -1) {
@@ -589,7 +594,7 @@ public class RecorderHelper {
 	 * @return Full path to the recording file
 	 */
 	public String createFileName(String filePath, java.time.ZoneId zone, M3UHolder channel) {
-        String date = DATE_FORMATTER.withZone(zone).format(java.time.ZonedDateTime.now(zone));
+        String date = DATE_FORMATTER.withZone(zone).format(java.time.ZonedDateTime.now(zone)).replace("-", "_");
         String tvgName = channel != null && channel.tvgName() != null && !channel.tvgName().isEmpty() ? channel.tvgName().trim() : null;
         String groupTitle = channel != null && channel.groupTitle() != null ? channel.groupTitle().trim() : "";
        
@@ -599,6 +604,7 @@ public class RecorderHelper {
         String start = (this.timeFrom != null) ? this.timeFrom.replace(":", "") : "";
         String stop = (this.timeTo != null) ? this.timeTo.replace(":", "") : "";
         String sportPart = "";
+        String secondFolder = date + "_" + start + "_" + stop;
         
         if (channel != null && (channel.tvgId() == null || channel.tvgId().isEmpty())) {
             // Directory name = group-title, filename = group-title[_Sport1_Sport2_Stage]_YYYY-MM-DD_START_STOP.ts
@@ -625,7 +631,7 @@ public class RecorderHelper {
             fileNameBase = fileNameBase.substring(0, MAX_FILENAME_LENGTH - FILE_EXTENSION.length());
         }
         
-        java.io.File eventDir = new java.io.File(filePath, folder);
+        java.io.File eventDir = new java.io.File(filePath, folder + File.separator + secondFolder);
         if (!eventDir.exists()) eventDir.mkdirs();
         String fileName = fileNameBase + FILE_EXTENSION;
         fileName = fileName.replace("+", PLUS_REPLACEMENT);
@@ -773,4 +779,30 @@ public class RecorderHelper {
     // Add field for ffmpeg process
     private Process ffmpegProcess;
     private M3UHolder channelInfo;
+
+    // Download a logo image from a URL and save to dest (no progress print)
+    public static void getLogo(String logoUrl, String channelName, File dest) {
+        if (logoUrl != null && !logoUrl.isEmpty() && (logoUrl.startsWith("http://") || logoUrl.startsWith("https://"))) {
+            LogHelper.Log("Attempting to download tvg-logo: " + logoUrl + " to " + dest.getAbsolutePath());
+            java.io.InputStream input = null;
+            java.io.FileOutputStream outputStream = null;
+            try {
+                java.net.URL url = java.net.URI.create(logoUrl).toURL();
+                input = url.openStream();
+                outputStream = new java.io.FileOutputStream(dest);
+                byte[] bytes = new byte[BUFFER_SIZE];
+                int read;
+                while ((read = input.read(bytes)) != -1) {
+                    outputStream.write(bytes, 0, read);
+                }
+            } catch (Exception e) {
+                LogHelper.LogWarning("Could not download tvg-logo for channel: " + (channelName != null ? channelName : "?") + ". " + e.getMessage());
+            } finally {
+                try { if (input != null) input.close(); } catch (Exception ignored) {}
+                try { if (outputStream != null) outputStream.close(); } catch (Exception ignored) {}
+            }
+        } else {
+            LogHelper.Log("No tvg-logo found for channel: " + (channelName != null ? channelName : "?"));
+        }
+    }
 }

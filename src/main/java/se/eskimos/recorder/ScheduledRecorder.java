@@ -32,7 +32,8 @@ public class ScheduledRecorder {
         String tvgId = args.length > 10 ? args[10] : "";
         Integer recRetries = Integer.parseInt(args[11]);
         Integer recRetriesDelay = Integer.parseInt(args[12]) * 1000;
-        M3UHolder channelInfo = new M3UHolder(tvgName, url, "", groupTitle, tvgId, tvgName);
+        String tvgLogo = args.length > 13 ? args[13] : "";
+        M3UHolder channelInfo = new M3UHolder(tvgName, url, "", groupTitle, tvgId, tvgName, tvgLogo);
         // Only set log file if provided as argument
         if (logFile != null && !logFile.isEmpty()) {
             LogHelper.setLogFile(logFile);
@@ -136,7 +137,7 @@ public class ScheduledRecorder {
                         }
                     });
                     started = true;
-                    LogHelper.Log("[SCHEDULER] Started recording for channel: " + tvgName + ",");
+                    LogHelper.Log("[SCHEDULER] Started recording for channel: " + tvgName);
                     // Wait for the recording to finish or fail
                     while (true) {
                         LocalTime nowTime = LocalTime.now(zone);
