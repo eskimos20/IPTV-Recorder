@@ -45,15 +45,15 @@ public class ScheduledRecorder {
         String tvgLogo = args.length > 14 ? args[14] : "";
         // Build channelInfo with correct tvgName and groupTitle
         M3UHolder channelInfo = new M3UHolder(groupTitle, url, tvgName, groupTitle, tvgId, tvgName, tvgLogo);
-        // Bestäm displayName (tvgName eller name som fallback)
+        // Determine displayName (tvgName or name as fallback)
         String displayName = (tvgName != null && !tvgName.isEmpty()) ? tvgName : channelInfo.name();
-        // Läs isResume-flagga sist (default false om saknas)
+        // Read isResume flag last (default false if missing)
         final boolean isResume = (args.length > 15) && Boolean.parseBoolean(args[15]);
         // Only set log file if provided as argument
         if (logFile != null && !logFile.isEmpty()) {
             LogHelper.setLogFile(logFile);
             if (!isResume) {
-                LogHelper.Log("[SCHEDULER] Logging started. Log file: " + logFile);
+                LogHelper.Log(String.format(HelpText.SCHEDULER_LOGGING_STARTED, logFile));
             }
         } else {
             System.err.println("[SCHEDULER] Logging only to terminal. No log file specified.");
@@ -70,10 +70,10 @@ public class ScheduledRecorder {
             LocalTime startLocal = LocalTime.parse(startTime, formatter);
             ZonedDateTime start = now.withHour(startLocal.getHour()).withMinute(startLocal.getMinute()).withSecond(0).withNano(0);
             if (start.isBefore(now)) {
-                LogHelper.LogWarning("[SCHEDULER] Start time '" + startTime + "' has already passed, starting immediately.");
+                LogHelper.LogWarning(String.format(HelpText.SCHEDULER_START_TIME_PASSED, startTime));
             } else {
                 long millisToWait = java.time.Duration.between(now, start).toMillis();
-                LogHelper.Log("[SCHEDULER] Waiting " + (millisToWait/1000) + " seconds until start time " + startTime);
+                LogHelper.Log(String.format(HelpText.SCHEDULER_WAITING_UNTIL_START, (millisToWait/1000), startTime));
                 try { Thread.sleep(millisToWait); } catch (InterruptedException ie) { /* ignore */ }
             }
         }
@@ -98,42 +98,43 @@ public class ScheduledRecorder {
             boolean started = false;
             while (retryCount < recRetries && !started) {
                 try {
-                    LogHelper.Log("[SCHEDULER] Attempting to start recording (attempt " + (retryCount+1) + "/" + recRetries + ") for channel: " + displayName);
+                    LogHelper.Log(String.format(HelpText.SCHEDULER_ATTEMPTING_START, (retryCount+1), recRetries, displayName));
                     helper.startRecFFMPEG(outputPath, isResume); // If getLogo is called, pass displayName as channelName
                     started = true;
                 } catch (Exception e) {
                     retryCount++;
                     started = false;
                     if (retryCount < recRetries) {
-                        LogHelper.LogWarning("[SCHEDULER] Failed to start FFMPEG recording (attempt " + retryCount + "/" + recRetries + ") for channel: " + displayName + ". Retrying in " + (recRetriesDelay/1000) + " seconds. Error: " + LogHelper.printStackTrace(e));
-                        try { Thread.sleep(recRetriesDelay); } catch (Exception t) { LogHelper.LogError("[SCHEDULER] Error while waiting between FFMPEG attempts: " + LogHelper.printStackTrace(t)); }
+                        LogHelper.LogWarning(String.format(HelpText.SCHEDULER_FAILED_START_FFMPEG, retryCount, recRetries, displayName, (recRetriesDelay/1000), LogHelper.printStackTrace(e)));
+                        try { Thread.sleep(recRetriesDelay); } catch (Exception t) { LogHelper.LogError(HelpText.SCHEDULER_ERROR_WAITING_BETWEEN_ATTEMPTS + LogHelper.printStackTrace(t)); }
                     } else {
-                        LogHelper.LogError("[SCHEDULER] Could not start FFMPEG recording after " + recRetries + " attempts for channel: " + displayName + ". Error: " + LogHelper.printStackTrace(e));
-                        LogHelper.LogError("[SCHEDULER] Process exiting with exit(1)");
+                        LogHelper.LogError(String.format(HelpText.SCHEDULER_COULD_NOT_START_FFMPEG, recRetries, displayName, LogHelper.printStackTrace(e)));
+                        LogHelper.LogError(HelpText.SCHEDULER_PROCESS_EXITING);
                         shutdownAndExit(1);
                     }
                 }
             }
             if (started) {
                 try {
-                    LogHelper.Log("[SCHEDULER] Recording in progress, waiting until stop time " + stopTime + "...");
+                    LogHelper.Log(String.format(HelpText.SCHEDULER_RECORDING_IN_PROGRESS, stopTime));
                     while (true) {
                         LocalTime nowTime = LocalTime.now(zone);
                         long secondsLeft = java.time.Duration.between(nowTime, stop).getSeconds();
                         if (secondsLeft <= 0) break;
                         Thread.sleep(1000);
                     }
-                    LogHelper.Log("[SCHEDULER] Stop time reached. Stopping recording.");
+                    LogHelper.Log(HelpText.SCHEDULER_STOP_TIME_REACHED);
                     helper.stopRecording();
                     // Wait for executor to finish
                     shutdownAndExit(0);
                 } catch (Exception e) {
-                    LogHelper.LogError("[SCHEDULER] Error during recording stop: " + LogHelper.printStackTrace(e));
-                    LogHelper.LogError("[SCHEDULER] Process exiting with exit(1)");
+                    LogHelper.LogError(HelpText.SCHEDULER_ERROR_DURING_STOP + LogHelper.printStackTrace(e));
+                    LogHelper.LogError(HelpText.SCHEDULER_PROCESS_EXITING);
                     shutdownAndExit(1);
                 }
             } else {
-                LogHelper.LogError("[SCHEDULER] Recording could not be started. Process exiting with exit(1)");
+                LogHelper.LogError(HelpText.SCHEDULER_RECORDING_COULD_NOT_BE_STARTED);
+                LogHelper.LogError(HelpText.SCHEDULER_PROCESS_EXITING);
                 shutdownAndExit(1);
             }
         } else {
@@ -158,7 +159,7 @@ public class ScheduledRecorder {
                     });
                     started = true;
                     if (!isResume) {
-                        LogHelper.Log("[SCHEDULER] Started recording for channel: " + displayName);
+                        LogHelper.Log(String.format(HelpText.SCHEDULER_STARTED_RECORDING, displayName));
                     }
                     // Wait for the recording to finish or fail
                     while (true) {
@@ -169,9 +170,9 @@ public class ScheduledRecorder {
                         try { Thread.sleep(1000); } catch (InterruptedException ie) { break; }
                     }
                     if (!recFuture.isDone()) {
-                        LogHelper.Log("[SCHEDULER] Stop time reached. Attempting to cancel REGULAR recording.");
+                        LogHelper.Log(HelpText.SCHEDULER_STOP_TIME_REACHED_ATTEMPTING_CANCEL);
                         recFuture.cancel(true);
-                        LogHelper.Log("[SCHEDULER] REGULAR recording cancelled (or already completed).");
+                        LogHelper.Log(HelpText.SCHEDULER_REGULAR_RECORDING_CANCELLED);
                     } else {
                         // Check if the recording thread threw an exception
                         try {
@@ -185,26 +186,26 @@ public class ScheduledRecorder {
                     retryCount++;
                     started = false;
                     if (retryCount < recRetries) {
-                        LogHelper.LogWarning("[SCHEDULER] Failed to start REGULAR recording (attempt " + retryCount + "/" + recRetries + ") for channel: " + displayName + ". Retrying in " + (recRetriesDelay/1000) + " seconds. Error: " + LogHelper.printStackTrace(e));
-                        try { Thread.sleep(recRetriesDelay); } catch (Exception t) { LogHelper.LogError("[SCHEDULER] Error while waiting between REGULAR attempts: " + LogHelper.printStackTrace(t)); }
+                        LogHelper.LogWarning(String.format(HelpText.SCHEDULER_FAILED_START_REGULAR, retryCount, recRetries, displayName, (recRetriesDelay/1000), LogHelper.printStackTrace(e)));
+                        try { Thread.sleep(recRetriesDelay); } catch (Exception t) { LogHelper.LogError(HelpText.SCHEDULER_ERROR_WAITING_BETWEEN_ATTEMPTS + LogHelper.printStackTrace(t)); }
                     } else {
-                        LogHelper.LogError("[SCHEDULER] Could not start REGULAR recording after " + recRetries + " attempts for channel: " + displayName + ". Error: " + LogHelper.printStackTrace(e));
+                        LogHelper.LogError(String.format(HelpText.SCHEDULER_COULD_NOT_START_REGULAR, recRetries, displayName, LogHelper.printStackTrace(e)));
                         // Try to delete the created folder if empty
                         try {
                             String channelNameToDelete = sanitizedChannel != null ? sanitizedChannel : groupTitle;
                             java.io.File channelDir = new java.io.File(outputPath, channelNameToDelete);
                             if (channelDir.exists() && channelDir.isDirectory() && channelDir.list().length == 0) {
                                 if (channelDir.delete()) {
-                                    LogHelper.Log("[SCHEDULER] Deleted empty recording folder: " + channelDir.getAbsolutePath());
+                                    LogHelper.Log(String.format(HelpText.SCHEDULER_DELETED_EMPTY_RECORDING_FOLDER, channelDir.getAbsolutePath()));
                                 } else {
-                                    LogHelper.LogWarning("[SCHEDULER] Could not delete empty recording folder: " + channelDir.getAbsolutePath());
+                                    LogHelper.LogWarning(String.format(HelpText.SCHEDULER_COULD_NOT_DELETE_EMPTY_RECORDING_FOLDER, channelDir.getAbsolutePath()));
                                 }
                             }
                         } catch (Exception delEx) {
-                            LogHelper.LogWarning("[SCHEDULER] Exception while trying to delete empty recording folder: " + LogHelper.printStackTrace(delEx));
+                            LogHelper.LogWarning(HelpText.SCHEDULER_EXCEPTION_DELETING_EMPTY_RECORDING_FOLDER + LogHelper.printStackTrace(delEx));
                         }
-                        LogHelper.Log("[SCHEDULER] Process ended since no recording could be done!");
-                        LogHelper.LogError("[SCHEDULER] Process exiting with exit(1)");
+                        LogHelper.Log(HelpText.SCHEDULER_PROCESS_ENDED_NO_RECORDING);
+                        LogHelper.LogError(HelpText.SCHEDULER_PROCESS_EXITING);
                         shutdownAndExit(1);
                     }
                 }
@@ -223,14 +224,14 @@ public class ScheduledRecorder {
                     ZonedDateTime current = ZonedDateTime.now(zone);
                     
                     if (!current.isBefore(stopDateTime)) {
-                        LogHelper.Log("[SCHEDULER] Failsafe timer reached stop time. Exiting with System.exit(0)");
+                        LogHelper.Log(HelpText.SCHEDULER_FAILSAFE_TIMER_REACHED_STOP_TIME);
                         shutdownAndExit(0);
                     }
                     Thread.sleep(1000);
                 }
             } catch (Exception e) {
-                LogHelper.LogError("[SCHEDULER] Failsafe timer error: " + LogHelper.printStackTrace(e));
-                LogHelper.LogError("[SCHEDULER] Failsafe timer exiting with System.exit(1)");
+                LogHelper.LogError(HelpText.SCHEDULER_FAILSAFE_TIMER_ERROR + LogHelper.printStackTrace(e));
+                LogHelper.LogError(HelpText.SCHEDULER_FAILSAFE_TIMER_EXITING);
                 shutdownAndExit(1);
             }
         });

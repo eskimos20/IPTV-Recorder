@@ -72,10 +72,10 @@ public class RecorderHelper {
 	    try (var fis = new FileInputStream(fileName)) {
 	        prop.load(fis);
 	    } catch(FileNotFoundException fnfe) {
-	        LogHelper.LogError("Failed to load properties file: " + fileName);
+	        LogHelper.LogError(HelpText.FAILED_TO_LOAD_PROPERTIES_FILE + fileName);
 	        LogHelper.LogError(LogHelper.printStackTrace(fnfe));
 	    } catch(IOException ioe) {
-	        LogHelper.LogError("IO error while loading properties file: " + fileName);
+	        LogHelper.LogError(HelpText.IO_ERROR_LOADING_PROPERTIES_FILE + fileName);
 	        LogHelper.LogError(LogHelper.printStackTrace(ioe));
 	    }
 	    return prop;
@@ -550,7 +550,7 @@ public class RecorderHelper {
     }
 	
 	/**
-	 * Utför ett inspelningsförsök, returnerar true om streamen gick hela vägen till stopptid, annars false
+	 * Performs a recording attempt, returns true if the stream lasted until stop time, otherwise false
 	 */
 	private boolean recordOnceRegular(String filePath, LocalTime targetTime) throws Exception {
         String outputFile = createFileName(filePath, LogHelper.getTimeZone(), this.channelInfo);
@@ -570,7 +570,7 @@ public class RecorderHelper {
                 }
             }
             if (LocalTime.now().isBefore(targetTime)) {
-                LogHelper.LogError("[REGULAR] InputStream ended before stop time. Stream may have been dropped or closed by server.");
+                LogHelper.LogError(HelpText.REGULAR_INPUTSTREAM_ENDED);
                 return false;
             }
             return true;
@@ -603,8 +603,8 @@ public class RecorderHelper {
                     System.exit(1);
                 }
             } catch (Exception e) {
-                LogHelper.LogError("[REGULAR] Exception during recording: " + e.getMessage(), e);
-                LogHelper.LogWarning("[REGULAR] Waiting 15 seconds before retrying resume...");
+                LogHelper.LogError(String.format(HelpText.REGULAR_EXCEPTION_DURING_RECORDING, e.getMessage()), e);
+                LogHelper.LogWarning(HelpText.REGULAR_WAITING_BEFORE_RESUME);
                 Thread.sleep(15_000);
                 // The loop continues and tries again
             }
@@ -730,11 +730,11 @@ public class RecorderHelper {
                 System.out.println();
         }
     } catch (MalformedURLException e) {
-            LogHelper.LogError("Exception in RecorderHelper.getM3UFile", e);
+            LogHelper.LogError(HelpText.EXCEPTION_IN_RECORDERHELPER_GETM3UFILE, e);
         LogHelper.LogError(String.format(HelpText.MALFORMED_URL, myUrl));
         LogHelper.LogError(LogHelper.printStackTrace(e));
     } catch (IOException e) {
-            LogHelper.LogError("Exception in RecorderHelper.getM3UFile", e);
+            LogHelper.LogError(HelpText.EXCEPTION_IN_RECORDERHELPER_GETM3UFILE, e);
         LogHelper.LogError(String.format(HelpText.IO_ERROR_DURING_RECORDING, e.getMessage()));
         LogHelper.LogError(LogHelper.printStackTrace(e));
         } finally {
@@ -760,18 +760,18 @@ public class RecorderHelper {
 			return input.trim();
 			}
 		} catch (NoSuchElementException e) {
-            LogHelper.LogError("Exception in RecorderHelper.readInput", e);
-            LogHelper.LogError("[INPUT] Ingen inmatning tillgänglig (NoSuchElementException): " + e.getMessage());
+            LogHelper.LogError(HelpText.EXCEPTION_IN_READ_INPUT, e);
+            LogHelper.LogError(HelpText.NO_INPUT_AVAILABLE + e.getMessage());
             LogHelper.LogError(LogHelper.printStackTrace(e));
             return null;
         } catch (IllegalStateException e) {
-            LogHelper.LogError("Exception in RecorderHelper.readInput", e);
-            LogHelper.LogError("[INPUT] Scanner är stängd (IllegalStateException): " + e.getMessage());
+            LogHelper.LogError(HelpText.EXCEPTION_IN_READ_INPUT, e);
+            LogHelper.LogError(HelpText.SCANNER_CLOSED + e.getMessage());
             LogHelper.LogError(LogHelper.printStackTrace(e));
             return null;
         } catch (Exception e) {
-            LogHelper.LogError("Exception in RecorderHelper.readInput", e);
-            LogHelper.LogError("[INPUT] Okänt fel vid inläsning av input: " + e.getMessage());
+            LogHelper.LogError(HelpText.EXCEPTION_IN_READ_INPUT, e);
+            LogHelper.LogError(HelpText.UNKNOWN_ERROR_WHILE_READING_INPUT + e.getMessage());
             LogHelper.LogError(LogHelper.printStackTrace(e));
             return null;
 		}	
@@ -874,17 +874,17 @@ public class RecorderHelper {
             ProcessBuilder pb = new ProcessBuilder(resumeArgs);
             pb.inheritIO();
             Process process = pb.start();
-            LogHelper.LogWarning("[REGULAR] Started new ScheduledRecorder process for resume. Exiting current process.");
+            LogHelper.LogWarning(HelpText.REGULAR_STARTED_RESUME_PROCESS);
             Thread.sleep(2000);
             try {
                 int exitCode = process.exitValue();
-                LogHelper.LogError("[REGULAR] Resumed process exited immediately with code: " + exitCode);
+                LogHelper.LogError(String.format(HelpText.REGULAR_RESUMED_PROCESS_EXITED, exitCode));
             } catch (IllegalThreadStateException itse) {
-                LogHelper.Log("[REGULAR] Resumed process is running.");
+                LogHelper.Log(HelpText.REGULAR_RESUMED_PROCESS_RUNNING);
             }
         } catch (Exception ex) {
             System.err.println("Undantag i resumeRecordingProcess: " + ex.getMessage());
-            LogHelper.LogError("[REGULAR] Failed to resume recording: " + ex.getMessage(), ex);
+            LogHelper.LogError(HelpText.REGULAR_FAILED_TO_RESUME + ex.getMessage(), ex);
             throw ex;
         }
     }
@@ -903,15 +903,15 @@ public class RecorderHelper {
                 while ((read = input.read(bytes)) != -1) {
                     outputStream.write(bytes, 0, read);
                 }
-                LogHelper.Log("Downloaded tvg-logo for channel: " + (channelName != null ? channelName : "?"));
+                LogHelper.Log(String.format(HelpText.REGULAR_DOWNLOADED_TVG_LOGO, (channelName != null ? channelName : "?")));
             } catch (Exception e) {
-                LogHelper.LogWarning("Failed to download tvg-logo for channel: " + (channelName != null ? channelName : "?") + ". " + e.getMessage());
+                LogHelper.LogWarning(String.format(HelpText.REGULAR_FAILED_TO_DOWNLOAD_TVG_LOGO, (channelName != null ? channelName : "?"), e.getMessage()));
             } finally {
                 try { if (input != null) input.close(); } catch (Exception ignored) {}
                 try { if (outputStream != null) outputStream.close(); } catch (Exception ignored) {}
             }
         } else {
-            LogHelper.Log("No tvg-logo found for channel: " + (channelName != null ? channelName : "?"));
+            LogHelper.Log(HelpText.REGULAR_NO_TVG_LOGO_FOUND.replace("%s", (channelName != null ? channelName : "?")));
         }
     }
 }

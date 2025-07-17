@@ -71,11 +71,11 @@ public class M3UParser {
 					}
 				}
 			} catch (FileNotFoundException e) {
-				LogHelper.LogError("M3U file not found: " + f.getAbsolutePath());
+				LogHelper.LogError(HelpText.M3U_FILE_NOT_FOUND + f.getAbsolutePath());
 				throw e;
 			} catch (Exception e) {
-				LogHelper.LogError("Failed to parse M3U file: " + f.getAbsolutePath());
-				LogHelper.LogError("Error: " + e.getMessage());
+				LogHelper.LogError(HelpText.FAILED_TO_PARSE_M3U_FILE + f.getAbsolutePath());
+				LogHelper.LogError(HelpText.ERROR_PREFIX + e.getMessage());
 				LogHelper.LogError(LogHelper.printStackTrace(e));
 			}
 		}

@@ -142,7 +142,7 @@ public class StartRecorder {
 			se.eskimos.recorder.MailExceptionBuffer.flushAndSend();
 			return;
 		} catch (Exception e) {
-			LogHelper.LogError("Application error: " + e.getMessage(), e);
+			LogHelper.LogError(String.format(HelpText.APPLICATION_ERROR, e.getMessage()), e);
 			userIO.print(errorPrefixText + e.getMessage());
 			// After run, send summary mail if any error occurred
 			se.eskimos.recorder.MailExceptionBuffer.flushAndSend();
@@ -220,7 +220,7 @@ public class StartRecorder {
 			se.eskimos.recorder.MailExceptionBuffer.flushAndSend();
 			return;
 		} catch (Exception e) {
-			LogHelper.LogError("Application error: " + e.getMessage(), e);
+			LogHelper.LogError(String.format(HelpText.APPLICATION_ERROR, e.getMessage()), e);
 			userIO.print(errorPrefixText + e.getMessage());
 			// After special scenario, send summary mail if any error occurred
 			se.eskimos.recorder.MailExceptionBuffer.flushAndSend();
@@ -236,7 +236,7 @@ public class StartRecorder {
 		// destinationPath
 		String destinationPath = config.getDestinationPath();
 		if (destinationPath == null || destinationPath.isEmpty()) {
-			String error = "Missing required config: destinationPath";
+			String error = HelpText.MISSING_DESTINATION_PATH;
 			LogHelper.LogError(error);
 			userIO.print(error);
 			throw new IllegalArgumentException(error);
@@ -244,7 +244,7 @@ public class StartRecorder {
 		// url
 		String url = config.getUrl();
 		if (url == null || url.isEmpty()) {
-			String error = "Missing required config: url";
+			String error = HelpText.MISSING_URL;
 			LogHelper.LogError(error);
 			userIO.print(error);
 			throw new IllegalArgumentException(error);
@@ -267,7 +267,7 @@ public class StartRecorder {
 			userIO.print(error);
 			throw new IllegalArgumentException(error);
 		}
-		// Om useM3UFile=true så är m3uFile obligatorisk
+		// If useM3UFile=true then m3uFile is required
 		if (useM3UFile.equalsIgnoreCase("true")) {
 			String m3uFile = config.getM3UFile();
 			if (m3uFile == null || m3uFile.isEmpty()) {
@@ -280,7 +280,7 @@ public class StartRecorder {
 		// recRetries
 		int recRetries = config.getRecRetries();
 		if (recRetries <= 0) {
-			String error = "Missing or invalid config: recRetries (måste vara > 0)";
+			String error = "Missing or invalid config: recRetries (must be > 0)";
 			LogHelper.LogError(error);
 			userIO.print(error);
 			throw new IllegalArgumentException(error);
@@ -288,7 +288,7 @@ public class StartRecorder {
 		// recRetriesDelay
 		int recRetriesDelay = config.getRecRetriesDelay();
 		if (recRetriesDelay <= 0) {
-			String error = "Missing or invalid config: recRetriesDelay (måste vara > 0)";
+			String error = "Missing or invalid config: recRetriesDelay (must be > 0)";
 			LogHelper.LogError(error);
 			userIO.print(error);
 			throw new IllegalArgumentException(error);
@@ -427,7 +427,7 @@ public class StartRecorder {
 	 * @throws Exception if process start fails
 	 */
 	private static void startScheduledRecorder(RecorderHelper rH, ConfigHelper config, String channelDisplayName, M3UHolder selectedChannel) throws Exception {
-		// Parametrar är redan validerade i validateConfiguration
+		// Parameters are already validated in validateConfiguration
 		int recRetries = config.getRecRetries();
 		int recRetriesDelay = config.getRecRetriesDelay();
 
@@ -444,7 +444,7 @@ public class StartRecorder {
 		LogHelper.setTimeZone(java.time.ZoneId.of(timezone));
 		
 		java.util.List<String> cmd = new java.util.ArrayList<>();
-		// Bygg argumentlistan i exakt rätt ordning för ScheduledRecorder
+		// Build the argument list in the exact required order for ScheduledRecorder
 		cmd.clear();
 		cmd.add(javaBin); // 0
 		cmd.add("-cp"); // 1
@@ -455,7 +455,7 @@ public class StartRecorder {
 		cmd.add(rH.getTimeFrom());                   // 6 (args[2])
 		cmd.add(rH.getTimeTo());                     // 7 (args[3])
 		cmd.add(mode);                               // 8 (args[4])
-		cmd.add("");                                // 9 (args[5], logConfigPath, alltid tom)
+		cmd.add(""); // 9 (args[5], logConfigPath, always empty)
 		cmd.add(selectedChannel != null ? selectedChannel.tvgName() : ""); // 10 (args[6])
 		cmd.add(config.getTimezone());               // 11 (args[7])
 		cmd.add(Boolean.toString(is24Hour));         // 12 (args[8])
@@ -465,7 +465,7 @@ public class StartRecorder {
 		cmd.add(Integer.toString(recRetries));       // 16 (args[12])
 		cmd.add(Integer.toString(recRetriesDelay));  // 17 (args[13])
 		cmd.add(selectedChannel != null ? selectedChannel.tvgLogo() : ""); // 18 (args[14])
-		cmd.add("false"); // 19 (args[15], isResume, alltid false vid första start)
+		cmd.add("false"); // 19 (args[15], isResume, always false on first start)
 		
 
 		ProcessBuilder pb = new ProcessBuilder(cmd);

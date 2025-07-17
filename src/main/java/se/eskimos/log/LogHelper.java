@@ -187,14 +187,14 @@ public class LogHelper {
                 }
             }
         }
-        // Om fil-loggning misslyckades, logga alltid till System.err
+        // If file logging failed, always log to System.err
         if (!fileLogged) {
             System.err.println(formatted);
         }
     }
 
     /**
-     * Loggar ett kritiskt fel till både loggfil och terminal
+     * Logs a critical error to both log file and terminal
      */
     public static void LogCritical(String message) {
         String formatted = formatMessage("CRITICAL", message);
@@ -205,7 +205,7 @@ public class LogHelper {
                     fileWriter.newLine();
                     fileWriter.flush();
                 } catch (IOException e) {
-                    // Ignorera, logga ändå till terminal
+                    // Ignore, still log to terminal
                 }
             }
         }

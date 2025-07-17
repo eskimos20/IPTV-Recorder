@@ -26,7 +26,7 @@ public class UserInputHelper {
             String input = scanner.nextLine();
             return input == null ? null : input.trim();
         } catch (Exception e) {
-            LogHelper.LogError("Exception in UserInputHelper.readInput", e);
+            LogHelper.LogError(HelpText.EXCEPTION_IN_USERINPUTHELPER_READINPUT, e);
             return null;
         }
     }

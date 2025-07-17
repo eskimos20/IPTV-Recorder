@@ -44,7 +44,7 @@ public class MailHelper {
             Transport.send(message);
         } catch (MessagingException e) {
             e.printStackTrace();
-            se.eskimos.log.LogHelper.LogError("Failed to send exception mail: " + e.getMessage());
+            se.eskimos.log.LogHelper.LogError(HelpText.FAILED_TO_SEND_EXCEPTION_MAIL + e.getMessage());
         }
     }
 } 
