@@ -1,4 +1,4 @@
-package se.eskimos.recorder;
+package se.eskimos.helpers;
 
 import java.util.Arrays;
 import java.util.List;

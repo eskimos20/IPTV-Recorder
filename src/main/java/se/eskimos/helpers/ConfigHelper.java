@@ -1,4 +1,4 @@
-package se.eskimos.recorder;
+package se.eskimos.helpers;
 
 import se.eskimos.log.LogHelper;
 import java.io.FileInputStream;
@@ -39,7 +39,7 @@ public class ConfigHelper {
         try (var fis = new FileInputStream(configPath)) {
             props.load(fis);
         } catch (IOException e) {
-            LogHelper.LogError(HelpText.FAILED_TO_LOAD_CONFIG + configPath);
+            LogHelper.LogError(TextHelper.FAILED_TO_LOAD_CONFIG + configPath);
             LogHelper.LogError(LogHelper.printStackTrace(e));
         }
         this.sendMail = Boolean.parseBoolean(props.getProperty("SENDMAIL", "false"));
@@ -218,7 +218,7 @@ public class ConfigHelper {
             ZoneId.of(safeTrim(tz));
             return safeTrim(tz);
         } catch (Exception e) {
-            LogHelper.LogWarning(String.format(HelpText.INVALID_TIMEZONE_FORMAT, tz, DEFAULT_TIMEZONE));
+            LogHelper.LogWarning(String.format(TextHelper.INVALID_TIMEZONE_FORMAT, tz, DEFAULT_TIMEZONE));
             return DEFAULT_TIMEZONE;
         }
     }

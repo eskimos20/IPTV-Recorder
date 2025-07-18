@@ -4,6 +4,14 @@ import java.io.File;
 import java.nio.file.Files;
 import java.util.Scanner;
 import se.eskimos.log.LogHelper;
+import se.eskimos.helpers.UserIOHelper;
+import se.eskimos.helpers.TextHelper;
+import se.eskimos.helpers.ConfigHelper;
+import se.eskimos.mail.MailExceptionBuffer;
+import se.eskimos.mail.MailHelper;
+import se.eskimos.helpers.RecorderHelper;
+import se.eskimos.m3u.M3UHolder;
+import se.eskimos.m3u.M3UParser;
 
 public class StartRecorder {
 	
@@ -18,13 +26,13 @@ public class StartRecorder {
 	public static final String ANSI_GREEN = "\u001B[32m";
 	public static final String ANSI_RESET = "\u001B[0m";
 
-	private final UserInputHelper userIO;
+	private final UserIOHelper userIO;
 	private final String mainHelpText;
 	private final String exitChannelSelectionText;
 	private final String backgroundProcessStartedText;
 	private final String errorPrefixText;
 
-	public StartRecorder(UserInputHelper userIO, String mainHelpText, String exitChannelSelectionText, String backgroundProcessStartedText, String errorPrefixText) {
+	public StartRecorder(UserIOHelper userIO, String mainHelpText, String exitChannelSelectionText, String backgroundProcessStartedText, String errorPrefixText) {
 		this.userIO = userIO;
 		this.mainHelpText = mainHelpText;
 		this.exitChannelSelectionText = exitChannelSelectionText;
@@ -37,13 +45,13 @@ public class StartRecorder {
 	 * @param args Command line arguments
 	 */
 	public static void main(String[] args) {
-		var userIO = new UserInputHelper(new Scanner(System.in), System.out);
+		var userIO = new UserIOHelper(new Scanner(System.in), System.out);
 		StartRecorder app = new StartRecorder(
 			userIO,
-			HelpText.MAIN_HELP,
-			HelpText.EXIT_CHANNEL_SELECTION,
-			HelpText.BACKGROUND_PROCESS_STARTED,
-			HelpText.ERROR_PREFIX
+			TextHelper.MAIN_HELP,
+			TextHelper.EXIT_CHANNEL_SELECTION,
+			TextHelper.BACKGROUND_PROCESS_STARTED,
+			TextHelper.ERROR_PREFIX
 		);
 		app.run(args);
 	}
@@ -76,7 +84,7 @@ public class StartRecorder {
 			LogHelper.setLogFile(logFile);
 		}
 		// Initialize mail buffer
-		se.eskimos.recorder.MailExceptionBuffer.setConfig(config);
+		MailExceptionBuffer.setConfig(config);
 		// Now safe to log
 		
 		try {
@@ -139,13 +147,13 @@ public class StartRecorder {
 			
 			userIO.print(backgroundProcessStartedText);
 			// After run, send summary mail if any error occurred
-			se.eskimos.recorder.MailExceptionBuffer.flushAndSend();
+			MailExceptionBuffer.flushAndSend();
 			return;
 		} catch (Exception e) {
-			LogHelper.LogError(String.format(HelpText.APPLICATION_ERROR, e.getMessage()), e);
+			LogHelper.LogError(String.format(TextHelper.APPLICATION_ERROR, e.getMessage()), e);
 			userIO.print(errorPrefixText + e.getMessage());
 			// After run, send summary mail if any error occurred
-			se.eskimos.recorder.MailExceptionBuffer.flushAndSend();
+			MailExceptionBuffer.flushAndSend();
 		}
 	}
 	
@@ -153,7 +161,7 @@ public class StartRecorder {
 	private void runSpecialScenario(String[] args) {
 		// Expected: args[0]=config, args[1]=search string, args[2]=start time, args[3]=stop time
 		if (args.length < 4) {
-			System.err.println(HelpText.SPECIAL_SCENARIO_TOO_FEW_ARGS);
+			System.err.println(TextHelper.SPECIAL_SCENARIO_TOO_FEW_ARGS);
 			return;
 		}
 		String configPath = args[0];
@@ -176,16 +184,16 @@ public class StartRecorder {
 				myChannels = filterChannelsByGroup(myChannels, groupTitles);
 			}
 			// Search directly
-			java.util.List<M3UHolder> matches = se.eskimos.recorder.ChannelSearchHelper.searchChannels(myChannels, searchString);
+			java.util.List<M3UHolder> matches = se.eskimos.helpers.ChannelSearchHelper.searchChannels(myChannels, searchString);
 			if (matches.isEmpty()) {
-				System.err.println(String.format(HelpText.SPECIAL_SCENARIO_NO_MATCH, searchString));
-				se.eskimos.recorder.MailExceptionBuffer.addException("StartRecorder.runSpecialScenario", "No channel matched the search: '" + searchString + "'");
+				System.err.println(String.format(TextHelper.SPECIAL_SCENARIO_NO_MATCH, searchString));
+				MailExceptionBuffer.addException("StartRecorder.runSpecialScenario", "No channel matched the search: '" + searchString + "'");
 				// Send mail if search failed
-				new se.eskimos.recorder.MailHelper(config).sendMail(
+				new MailHelper(config).sendMail(
 					"IPTV-Recorder: No recording scheduled",
 					"No channel matched the search: '" + searchString + "'\nNo recording was scheduled."
 				);
-				se.eskimos.recorder.MailExceptionBuffer.flushAndSend();
+				MailExceptionBuffer.flushAndSend();
 				return;
 			}
 			M3UHolder selected = matches.get(0);
@@ -196,7 +204,7 @@ public class StartRecorder {
 			String startTime = argStartTime;
 			if (matcher.find()) {
 				startTime = matcher.group(1);
-				LogHelper.Log(String.format(HelpText.SPECIAL_SCENARIO_START_TIME_EXTRACTED, startTime));
+				LogHelper.Log(String.format(TextHelper.SPECIAL_SCENARIO_START_TIME_EXTRACTED, startTime));
 			}
 			rH.setTimeFrom(startTime);
 			rH.setTimeTo(argStopTime);
@@ -212,18 +220,18 @@ public class StartRecorder {
 			mailBody.append("Start time: ").append(rH.getTimeFrom()).append("\n");
 			mailBody.append("Stop time: ").append(rH.getTimeTo()).append("\n");
 
-			new se.eskimos.recorder.MailHelper(config).sendMail(
+			new MailHelper(config).sendMail(
 				"IPTV-Recorder: Recording scheduled",
 				mailBody.toString()
 			);
 			// After special scenario, send summary mail if any error occurred
-			se.eskimos.recorder.MailExceptionBuffer.flushAndSend();
+			MailExceptionBuffer.flushAndSend();
 			return;
 		} catch (Exception e) {
-			LogHelper.LogError(String.format(HelpText.APPLICATION_ERROR, e.getMessage()), e);
+			LogHelper.LogError(String.format(TextHelper.APPLICATION_ERROR, e.getMessage()), e);
 			userIO.print(errorPrefixText + e.getMessage());
 			// After special scenario, send summary mail if any error occurred
-			se.eskimos.recorder.MailExceptionBuffer.flushAndSend();
+			MailExceptionBuffer.flushAndSend();
 		}
 	}
 	
@@ -232,11 +240,11 @@ public class StartRecorder {
 	 * @param config The configuration helper
 	 * @throws IllegalArgumentException if validation fails
 	 */
-	private static void validateConfiguration(ConfigHelper config, UserInputHelper userIO) {
+	private static void validateConfiguration(ConfigHelper config, UserIOHelper userIO) {
 		// destinationPath
 		String destinationPath = config.getDestinationPath();
 		if (destinationPath == null || destinationPath.isEmpty()) {
-			String error = HelpText.MISSING_DESTINATION_PATH;
+			String error = TextHelper.MISSING_DESTINATION_PATH;
 			LogHelper.LogError(error);
 			userIO.print(error);
 			throw new IllegalArgumentException(error);
@@ -244,7 +252,7 @@ public class StartRecorder {
 		// url
 		String url = config.getUrl();
 		if (url == null || url.isEmpty()) {
-			String error = HelpText.MISSING_URL;
+			String error = TextHelper.MISSING_URL;
 			LogHelper.LogError(error);
 			userIO.print(error);
 			throw new IllegalArgumentException(error);

@@ -1,4 +1,4 @@
-package se.eskimos.recorder;
+package se.eskimos.m3u;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import se.eskimos.log.LogHelper;
+import se.eskimos.helpers.TextHelper;
 
 public class M3UParser {
 
@@ -71,11 +72,11 @@ public class M3UParser {
 					}
 				}
 			} catch (FileNotFoundException e) {
-				LogHelper.LogError(HelpText.M3U_FILE_NOT_FOUND + f.getAbsolutePath());
+				LogHelper.LogError(TextHelper.M3U_FILE_NOT_FOUND + f.getAbsolutePath());
 				throw e;
 			} catch (Exception e) {
-				LogHelper.LogError(HelpText.FAILED_TO_PARSE_M3U_FILE + f.getAbsolutePath());
-				LogHelper.LogError(HelpText.ERROR_PREFIX + e.getMessage());
+				LogHelper.LogError(TextHelper.FAILED_TO_PARSE_M3U_FILE + f.getAbsolutePath());
+				LogHelper.LogError(TextHelper.ERROR_PREFIX + e.getMessage());
 				LogHelper.LogError(LogHelper.printStackTrace(e));
 			}
 		}

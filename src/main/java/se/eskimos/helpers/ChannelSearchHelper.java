@@ -1,6 +1,7 @@
-package se.eskimos.recorder;
+package se.eskimos.helpers;
 import java.util.List;
 import java.util.ArrayList;
+import se.eskimos.m3u.M3UHolder;
 
 /**
  * Helper class for searching and filtering channels (M3UHolder).

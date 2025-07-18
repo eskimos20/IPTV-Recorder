@@ -6,6 +6,13 @@ import java.time.format.DateTimeFormatter;
 import java.time.ZonedDateTime;
 import java.time.ZoneId;
 
+import se.eskimos.helpers.StringAndFileHelper;
+import se.eskimos.helpers.UserIOHelper;
+import se.eskimos.helpers.TextHelper;
+import se.eskimos.helpers.RecorderHelper;
+import se.eskimos.m3u.M3UHolder;
+import se.eskimos.helpers.DateTimeHelper;
+
 public class ScheduledRecorder {
 
     public static void main(String[] args) {
@@ -53,7 +60,7 @@ public class ScheduledRecorder {
         if (logFile != null && !logFile.isEmpty()) {
             LogHelper.setLogFile(logFile);
             if (!isResume) {
-                LogHelper.Log(String.format(HelpText.SCHEDULER_LOGGING_STARTED, logFile));
+                LogHelper.Log(String.format(TextHelper.SCHEDULER_LOGGING_STARTED, logFile));
             }
         } else {
             System.err.println("[SCHEDULER] Logging only to terminal. No log file specified.");
@@ -63,23 +70,23 @@ public class ScheduledRecorder {
        
         RecorderHelper helper = null;
         DateTimeFormatter formatter = is24Hour ? DateTimeFormatter.ofPattern("HH:mm") : DateTimeFormatter.ofPattern("hh:mm a");
-        LocalTime stop = LocalTime.parse(stopTime, formatter);
+        LocalTime stop = DateTimeHelper.parseFlexibleLocalTime(stopTime, formatter);
         // Wait until start time before starting any recording (applies to both modes)
         if (!isResume) {
             ZonedDateTime now = ZonedDateTime.now(zone);
-            LocalTime startLocal = LocalTime.parse(startTime, formatter);
+            LocalTime startLocal = DateTimeHelper.parseFlexibleLocalTime(startTime, formatter);
             ZonedDateTime start = now.withHour(startLocal.getHour()).withMinute(startLocal.getMinute()).withSecond(0).withNano(0);
             if (start.isBefore(now)) {
-                LogHelper.LogWarning(String.format(HelpText.SCHEDULER_START_TIME_PASSED, startTime));
+                LogHelper.LogWarning(String.format(TextHelper.SCHEDULER_START_TIME_PASSED, startTime));
             } else {
                 long millisToWait = java.time.Duration.between(now, start).toMillis();
-                LogHelper.Log(String.format(HelpText.SCHEDULER_WAITING_UNTIL_START, (millisToWait/1000), startTime));
+                LogHelper.Log(String.format(TextHelper.SCHEDULER_WAITING_UNTIL_START, (millisToWait/1000), startTime));
                 try { Thread.sleep(millisToWait); } catch (InterruptedException ie) { /* ignore */ }
             }
         }
        
         if ("ffmpeg".equalsIgnoreCase(mode)) {
-            helper = new RecorderHelper(new UserInputHelper(new java.util.Scanner(System.in), System.out));
+            helper = new RecorderHelper(new UserIOHelper(new java.util.Scanner(System.in), System.out));
             helper.setUrl(url);
             helper.setTimeFrom(startTime);
             helper.setTimeTo(stopTime);
@@ -98,43 +105,43 @@ public class ScheduledRecorder {
             boolean started = false;
             while (retryCount < recRetries && !started) {
                 try {
-                    LogHelper.Log(String.format(HelpText.SCHEDULER_ATTEMPTING_START, (retryCount+1), recRetries, displayName));
+                    LogHelper.Log(String.format(TextHelper.SCHEDULER_ATTEMPTING_START, (retryCount+1), recRetries, displayName));
                     helper.startRecFFMPEG(outputPath, isResume); // If getLogo is called, pass displayName as channelName
                     started = true;
                 } catch (Exception e) {
                     retryCount++;
                     started = false;
                     if (retryCount < recRetries) {
-                        LogHelper.LogWarning(String.format(HelpText.SCHEDULER_FAILED_START_FFMPEG, retryCount, recRetries, displayName, (recRetriesDelay/1000), LogHelper.printStackTrace(e)));
-                        try { Thread.sleep(recRetriesDelay); } catch (Exception t) { LogHelper.LogError(HelpText.SCHEDULER_ERROR_WAITING_BETWEEN_ATTEMPTS + LogHelper.printStackTrace(t)); }
+                        LogHelper.LogWarning(String.format(TextHelper.SCHEDULER_FAILED_START_FFMPEG, retryCount, recRetries, displayName, (recRetriesDelay/1000), LogHelper.printStackTrace(e)));
+                        try { Thread.sleep(recRetriesDelay); } catch (Exception t) { LogHelper.LogError(TextHelper.SCHEDULER_ERROR_WAITING_BETWEEN_ATTEMPTS + LogHelper.printStackTrace(t)); }
                     } else {
-                        LogHelper.LogError(String.format(HelpText.SCHEDULER_COULD_NOT_START_FFMPEG, recRetries, displayName, LogHelper.printStackTrace(e)));
-                        LogHelper.LogError(HelpText.SCHEDULER_PROCESS_EXITING);
+                        LogHelper.LogError(String.format(TextHelper.SCHEDULER_COULD_NOT_START_FFMPEG, recRetries, displayName, LogHelper.printStackTrace(e)));
+                        LogHelper.LogError(TextHelper.SCHEDULER_PROCESS_EXITING);
                         shutdownAndExit(1);
                     }
                 }
             }
             if (started) {
                 try {
-                    LogHelper.Log(String.format(HelpText.SCHEDULER_RECORDING_IN_PROGRESS, stopTime));
+                    LogHelper.Log(String.format(TextHelper.SCHEDULER_RECORDING_IN_PROGRESS, stopTime));
                     while (true) {
                         LocalTime nowTime = LocalTime.now(zone);
                         long secondsLeft = java.time.Duration.between(nowTime, stop).getSeconds();
                         if (secondsLeft <= 0) break;
                         Thread.sleep(1000);
                     }
-                    LogHelper.Log(HelpText.SCHEDULER_STOP_TIME_REACHED);
+                    LogHelper.Log(TextHelper.SCHEDULER_STOP_TIME_REACHED);
                     helper.stopRecording();
                     // Wait for executor to finish
                     shutdownAndExit(0);
                 } catch (Exception e) {
-                    LogHelper.LogError(HelpText.SCHEDULER_ERROR_DURING_STOP + LogHelper.printStackTrace(e));
-                    LogHelper.LogError(HelpText.SCHEDULER_PROCESS_EXITING);
+                    LogHelper.LogError(TextHelper.SCHEDULER_ERROR_DURING_STOP + LogHelper.printStackTrace(e));
+                    LogHelper.LogError(TextHelper.SCHEDULER_PROCESS_EXITING);
                     shutdownAndExit(1);
                 }
             } else {
-                LogHelper.LogError(HelpText.SCHEDULER_RECORDING_COULD_NOT_BE_STARTED);
-                LogHelper.LogError(HelpText.SCHEDULER_PROCESS_EXITING);
+                LogHelper.LogError(TextHelper.SCHEDULER_RECORDING_COULD_NOT_BE_STARTED);
+                LogHelper.LogError(TextHelper.SCHEDULER_PROCESS_EXITING);
                 shutdownAndExit(1);
             }
         } else {
@@ -147,7 +154,7 @@ public class ScheduledRecorder {
                     RecorderHelper helperReg = createConfiguredHelperReg(
                         url, startTime, stopTime, channelInfo, logConfigPath, timezone, is24Hour, logFile, groupTitle, tvgId, recRetries, recRetriesDelay, tvgLogo, groupTitle
                     );
-                    sanitizedChannel = RecorderHelper.sanitizeForFileName(groupTitle);
+                    sanitizedChannel = StringAndFileHelper.sanitizeForFileName(groupTitle);
                     // Determine display name for channel (prefer tvgName, fallback to name)
                     displayName = (channelInfo.tvgName() != null && !channelInfo.tvgName().isEmpty()) ? channelInfo.tvgName() : channelInfo.name();
                     java.util.concurrent.Future<?> recFuture = java.util.concurrent.Executors.newSingleThreadExecutor().submit(() -> {
@@ -159,7 +166,7 @@ public class ScheduledRecorder {
                     });
                     started = true;
                     if (!isResume) {
-                        LogHelper.Log(String.format(HelpText.SCHEDULER_STARTED_RECORDING, displayName));
+                        LogHelper.Log(String.format(TextHelper.SCHEDULER_STARTED_RECORDING, displayName));
                     }
                     // Wait for the recording to finish or fail
                     while (true) {
@@ -170,9 +177,9 @@ public class ScheduledRecorder {
                         try { Thread.sleep(1000); } catch (InterruptedException ie) { break; }
                     }
                     if (!recFuture.isDone()) {
-                        LogHelper.Log(HelpText.SCHEDULER_STOP_TIME_REACHED_ATTEMPTING_CANCEL);
+                        LogHelper.Log(TextHelper.SCHEDULER_STOP_TIME_REACHED_ATTEMPTING_CANCEL);
                         recFuture.cancel(true);
-                        LogHelper.Log(HelpText.SCHEDULER_REGULAR_RECORDING_CANCELLED);
+                        LogHelper.Log(TextHelper.SCHEDULER_REGULAR_RECORDING_CANCELLED);
                     } else {
                         // Check if the recording thread threw an exception
                         try {
@@ -186,26 +193,26 @@ public class ScheduledRecorder {
                     retryCount++;
                     started = false;
                     if (retryCount < recRetries) {
-                        LogHelper.LogWarning(String.format(HelpText.SCHEDULER_FAILED_START_REGULAR, retryCount, recRetries, displayName, (recRetriesDelay/1000), LogHelper.printStackTrace(e)));
-                        try { Thread.sleep(recRetriesDelay); } catch (Exception t) { LogHelper.LogError(HelpText.SCHEDULER_ERROR_WAITING_BETWEEN_ATTEMPTS + LogHelper.printStackTrace(t)); }
+                        LogHelper.LogWarning(String.format(TextHelper.SCHEDULER_FAILED_START_REGULAR, retryCount, recRetries, displayName, (recRetriesDelay/1000), LogHelper.printStackTrace(e)));
+                        try { Thread.sleep(recRetriesDelay); } catch (Exception t) { LogHelper.LogError(TextHelper.SCHEDULER_ERROR_WAITING_BETWEEN_ATTEMPTS + LogHelper.printStackTrace(t)); }
                     } else {
-                        LogHelper.LogError(String.format(HelpText.SCHEDULER_COULD_NOT_START_REGULAR, recRetries, displayName, LogHelper.printStackTrace(e)));
+                        LogHelper.LogError(String.format(TextHelper.SCHEDULER_COULD_NOT_START_REGULAR, recRetries, displayName, LogHelper.printStackTrace(e)));
                         // Try to delete the created folder if empty
                         try {
                             String channelNameToDelete = sanitizedChannel != null ? sanitizedChannel : groupTitle;
                             java.io.File channelDir = new java.io.File(outputPath, channelNameToDelete);
                             if (channelDir.exists() && channelDir.isDirectory() && channelDir.list().length == 0) {
                                 if (channelDir.delete()) {
-                                    LogHelper.Log(String.format(HelpText.SCHEDULER_DELETED_EMPTY_RECORDING_FOLDER, channelDir.getAbsolutePath()));
+                                    LogHelper.Log(String.format(TextHelper.SCHEDULER_DELETED_EMPTY_RECORDING_FOLDER, channelDir.getAbsolutePath()));
                                 } else {
-                                    LogHelper.LogWarning(String.format(HelpText.SCHEDULER_COULD_NOT_DELETE_EMPTY_RECORDING_FOLDER, channelDir.getAbsolutePath()));
+                                    LogHelper.LogWarning(String.format(TextHelper.SCHEDULER_COULD_NOT_DELETE_EMPTY_RECORDING_FOLDER, channelDir.getAbsolutePath()));
                                 }
                             }
                         } catch (Exception delEx) {
-                            LogHelper.LogWarning(HelpText.SCHEDULER_EXCEPTION_DELETING_EMPTY_RECORDING_FOLDER + LogHelper.printStackTrace(delEx));
+                            LogHelper.LogWarning(TextHelper.SCHEDULER_EXCEPTION_DELETING_EMPTY_RECORDING_FOLDER + LogHelper.printStackTrace(delEx));
                         }
-                        LogHelper.Log(HelpText.SCHEDULER_PROCESS_ENDED_NO_RECORDING);
-                        LogHelper.LogError(HelpText.SCHEDULER_PROCESS_EXITING);
+                        LogHelper.Log(TextHelper.SCHEDULER_PROCESS_ENDED_NO_RECORDING);
+                        LogHelper.LogError(TextHelper.SCHEDULER_PROCESS_EXITING);
                         shutdownAndExit(1);
                     }
                 }
@@ -215,7 +222,7 @@ public class ScheduledRecorder {
         Thread stopTimer = new Thread(() -> {
             try {
                 // Use already declared formatter and stop
-                LocalTime stopLocal = LocalTime.parse(stopTime, formatter);
+                LocalTime stopLocal = DateTimeHelper.parseFlexibleLocalTime(stopTime, formatter);
                 ZonedDateTime stopDateTime = ZonedDateTime.now(zone);
                 if (stopDateTime.isBefore(stopDateTime.withHour(stopLocal.getHour()).withMinute(stopLocal.getMinute()).withSecond(0).withNano(0))) {
                     stopDateTime = stopDateTime.plusDays(1);
@@ -224,14 +231,14 @@ public class ScheduledRecorder {
                     ZonedDateTime current = ZonedDateTime.now(zone);
                     
                     if (!current.isBefore(stopDateTime)) {
-                        LogHelper.Log(HelpText.SCHEDULER_FAILSAFE_TIMER_REACHED_STOP_TIME);
+                        LogHelper.Log(TextHelper.SCHEDULER_FAILSAFE_TIMER_REACHED_STOP_TIME);
                         shutdownAndExit(0);
                     }
                     Thread.sleep(1000);
                 }
             } catch (Exception e) {
-                LogHelper.LogError(HelpText.SCHEDULER_FAILSAFE_TIMER_ERROR + LogHelper.printStackTrace(e));
-                LogHelper.LogError(HelpText.SCHEDULER_FAILSAFE_TIMER_EXITING);
+                LogHelper.LogError(TextHelper.SCHEDULER_FAILSAFE_TIMER_ERROR + LogHelper.printStackTrace(e));
+                LogHelper.LogError(TextHelper.SCHEDULER_FAILSAFE_TIMER_EXITING);
                 shutdownAndExit(1);
             }
         });
@@ -241,7 +248,7 @@ public class ScheduledRecorder {
 
     // Create and configure RecorderHelper for REGULAR-mode
     private static RecorderHelper createConfiguredHelperReg(String url, String startTime, String stopTime, M3UHolder channelInfo, String logConfigPath, String timezone, boolean is24Hour, String logFile, String groupTitle, String tvgId, int recRetries, int recRetriesDelay, String tvgLogo, String tvgName) {
-        RecorderHelper helperReg = new RecorderHelper(new UserInputHelper(new java.util.Scanner(System.in), System.out));
+        RecorderHelper helperReg = new RecorderHelper(new UserIOHelper(new java.util.Scanner(System.in), System.out));
         helperReg.setUrl(url);
         helperReg.setTimeFrom(startTime);
         helperReg.setTimeTo(stopTime);
@@ -262,7 +269,7 @@ public class ScheduledRecorder {
     // Utility method to shutdown executor and exit process
     private static void shutdownAndExit(int exitCode) {
         try {
-            java.util.concurrent.ExecutorService exec = se.eskimos.recorder.RecorderHelper.getExecutor();
+            java.util.concurrent.ExecutorService exec = RecorderHelper.getExecutor();
             exec.shutdown();
             if (!exec.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
                 LogHelper.LogError("[SCHEDULER] Executor did not terminate within timeout, forcing shutdownNow.");

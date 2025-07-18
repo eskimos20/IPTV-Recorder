@@ -1,4 +1,4 @@
-package se.eskimos.recorder;
+package se.eskimos.mail;
 
 import java.util.Properties;
 import javax.mail.Message;
@@ -8,6 +8,8 @@ import javax.mail.Session;
 import javax.mail.Transport;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
+import se.eskimos.helpers.ConfigHelper;
+import se.eskimos.helpers.TextHelper;
 
 public class MailHelper {
     private final ConfigHelper configHelper;
@@ -44,7 +46,7 @@ public class MailHelper {
             Transport.send(message);
         } catch (MessagingException e) {
             e.printStackTrace();
-            se.eskimos.log.LogHelper.LogError(HelpText.FAILED_TO_SEND_EXCEPTION_MAIL + e.getMessage());
+            se.eskimos.log.LogHelper.LogError(TextHelper.FAILED_TO_SEND_EXCEPTION_MAIL + e.getMessage());
         }
     }
 } 

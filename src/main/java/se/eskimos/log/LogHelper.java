@@ -10,7 +10,7 @@ import java.util.Properties;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import se.eskimos.recorder.MailExceptionBuffer;
+import se.eskimos.mail.MailExceptionBuffer;
 
 public class LogHelper {
     private static String logFile = null;

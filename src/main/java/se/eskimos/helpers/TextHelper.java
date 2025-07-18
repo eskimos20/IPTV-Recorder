@@ -1,9 +1,9 @@
-package se.eskimos.recorder;
+package se.eskimos.helpers;
 
 /**
  * Centralized help, error, and user-facing texts for the IPTV Recorder CLI.
  */
-public class HelpText {
+public class TextHelper {
     public static final String MAIN_HELP =
         "Usage: java -jar IPTV-Recorder.jar [--help] [config.properties]\n" +
         "You can specify the config file as the first argument, or use --config <path>.\n" +
@@ -114,7 +114,7 @@ public class HelpText {
     public static final String MISSING_DESTINATION_PATH = "Missing required config: destinationPath";
     public static final String FAILED_TO_LOAD_CONFIG = "Failed to load config: ";
     public static final String INVALID_TIMEZONE_FORMAT = "Invalid timezone format: %s, using default: %s";
-    public static final String EXCEPTION_IN_USERINPUTHELPER_READINPUT = "Exception in UserInputHelper.readInput";
+    public static final String EXCEPTION_IN_USERIOHELPER_READINPUT = "Exception in UserIOHelper.readInput";
     public static final String FAILED_TO_SEND_EXCEPTION_MAIL = "Failed to send exception mail: ";
     public static final String M3U_FILE_NOT_FOUND = "M3U file not found: ";
     public static final String FAILED_TO_PARSE_M3U_FILE = "Failed to parse M3U file: ";

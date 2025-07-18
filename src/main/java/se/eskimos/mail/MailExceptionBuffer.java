@@ -1,8 +1,9 @@
-package se.eskimos.recorder;
+package se.eskimos.mail;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import se.eskimos.helpers.ConfigHelper;
 
 public class MailExceptionBuffer {
     private static final List<String> exceptionBuffer = Collections.synchronizedList(new ArrayList<>());

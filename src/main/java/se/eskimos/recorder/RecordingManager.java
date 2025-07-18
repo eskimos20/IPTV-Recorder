@@ -2,6 +2,7 @@ package se.eskimos.recorder;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.io.IOException;
+import se.eskimos.helpers.DateTimeHelper;
 
 /**
  * Handles starting and stopping of recordings (FFMPEG and REGULAR).
@@ -33,7 +34,7 @@ public class RecordingManager {
      * @throws IOException if recording cannot be started
      */
     public void startRecRegular(String url, String outputFile, String stopTime) throws IOException {
-        LocalTime targetTime = LocalTime.parse(stopTime, TIME_FORMATTER);
+        LocalTime targetTime = DateTimeHelper.parseFlexibleLocalTime(stopTime, TIME_FORMATTER);
         try (var input = java.net.URI.create(url).toURL().openStream();
              var outputStream = new java.io.FileOutputStream(new java.io.File(outputFile))) {
             byte[] bytes = new byte[8192];

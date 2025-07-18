@@ -1,31 +1,23 @@
-package se.eskimos.recorder;
+package se.eskimos.helpers;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.MalformedURLException;
-import java.text.SimpleDateFormat;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.TimeUnit;
 import se.eskimos.log.LogHelper;
-import java.util.Properties;
-import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.time.format.DateTimeParseException;
-import java.util.Date;
 import java.util.NoSuchElementException;
+import se.eskimos.m3u.M3UHolder;
 
 public class RecorderHelper {
 	
 	// Constants for magic numbers
 	private static final int BUFFER_SIZE = 8192;
 	private static final int SLEEP_INTERVAL_MS = 1000;
-	private static final String DEFAULT_GROUP_NAME = "Unknown";
-	private static final String FILE_EXTENSION = ".ts";
-	private static final String PLUS_REPLACEMENT = "plus";
-	private static final int MAX_FILENAME_LENGTH = 255;
 	private static final long MIN_DISK_SPACE_BYTES = 1024 * 1024 * 100; // 100MB minimum
 	
 	private String timeFrom = "";
@@ -58,43 +50,6 @@ public class RecorderHelper {
 	
 	// Static formatters for efficient time handling
 	private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
-	private static final SimpleDateFormat LEGACY_TIME_SECONDS_FORMATTER = new SimpleDateFormat("HH:mm:ss");
-	private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-	
-	/**
-	 * Loads properties from config.properties file
-	 * @param fileName Path to the properties file
-	 * @return Properties object containing the configuration
-	 * @throws IOException if the file cannot be read
-	 */
-	public Properties readPropertiesFile(String fileName) throws IOException {
-	    Properties prop = new Properties();
-	    try (var fis = new FileInputStream(fileName)) {
-	        prop.load(fis);
-	    } catch(FileNotFoundException fnfe) {
-	        LogHelper.LogError(HelpText.FAILED_TO_LOAD_PROPERTIES_FILE + fileName);
-	        LogHelper.LogError(LogHelper.printStackTrace(fnfe));
-	    } catch(IOException ioe) {
-	        LogHelper.LogError(HelpText.IO_ERROR_LOADING_PROPERTIES_FILE + fileName);
-	        LogHelper.LogError(LogHelper.printStackTrace(ioe));
-	    }
-	    return prop;
-	}
-	
-	/**
-	 * Sanitizes a string for use in file/folder names by replacing special characters with underscores
-	 * @param input The string to sanitize
-	 * @return Sanitized string safe for file/folder names
-	 */
-	public static String sanitizeForFileName(String input) {
-		if (input == null || input.isEmpty()) {
-			return DEFAULT_GROUP_NAME;
-		}
-		return input.replaceAll("[\\s]+", "_")
-					.replaceAll("[^a-zA-Z0-9_]", "_")
-					.replaceAll("_+", "_")
-					.replaceAll("^_+|_+$", "");
-	}
 	
 	/**
 	 * Validates URL format and disk space availability
@@ -105,13 +60,13 @@ public class RecorderHelper {
 	private void validateRecordingSetup(String url, String destinationPath) {
 		// Validate URL format
 		if (url == null || url.trim().isEmpty()) {
-			throw new IllegalArgumentException(HelpText.URL_CANNOT_BE_NULL);
+			throw new IllegalArgumentException(TextHelper.URL_CANNOT_BE_NULL);
 		}
 		
 		try {
 			new java.net.URI(url);
 		} catch (java.net.URISyntaxException e) {
-			throw new IllegalArgumentException(String.format(HelpText.INVALID_URL_FORMAT, url));
+			throw new IllegalArgumentException(String.format(TextHelper.INVALID_URL_FORMAT, url));
 		}
 		
 		// Check disk space
@@ -122,7 +77,7 @@ public class RecorderHelper {
 		
 		long freeSpace = destinationDir.getFreeSpace();
 		if (freeSpace < MIN_DISK_SPACE_BYTES) {
-			throw new IllegalArgumentException(String.format(HelpText.INSUFFICIENT_DISK_SPACE, (freeSpace / (1024 * 1024)), (MIN_DISK_SPACE_BYTES / (1024 * 1024))));
+			throw new IllegalArgumentException(String.format(TextHelper.INSUFFICIENT_DISK_SPACE, (freeSpace / (1024 * 1024)), (MIN_DISK_SPACE_BYTES / (1024 * 1024))));
 		}
 	}
 	
@@ -140,20 +95,20 @@ public class RecorderHelper {
 	 */
 	public ChannelSelectionResult loadChannels(ArrayList<M3UHolder> myChannels, boolean restarted, String text, String destinationPath, int startIndex) {
         // Only clear screen at the start of paging, not after a failed search
-        clearScreen();
+        userIO.clearScreen();
         int totalChannels = myChannels.size();
-        int endIndex = Math.min(startIndex + StringHelper.CHANNELS_PER_PAGE, totalChannels);
+        int endIndex = Math.min(startIndex + StringAndFileHelper.CHANNELS_PER_PAGE, totalChannels);
         // Calculate max channel name length for the entire list (once per session)
         if (maxNameLength < 0) {
-            maxNameLength = StringHelper.getMaxChannelNameLength(myChannels);
+            maxNameLength = StringAndFileHelper.getMaxChannelNameLength(myChannels);
         }
         // Use the same method for displaying channels as in search, with logging and alignment
-        StringHelper.printChannelList(myChannels, startIndex, endIndex, System.out::println, maxNameLength);
+        userIO.printChannelList(myChannels, startIndex, endIndex, maxNameLength);
         // If there are more channels, ask for input
         if (endIndex < totalChannels) {
             ChannelSelectionResult result = waitForChannelInput(myChannels, restarted, text, destinationPath, startIndex);
             if (result == ChannelSelectionResult.RESTART_MAIN_PROMPT) {
-                clearScreen(); // Ensure list is shown again after failed search
+                userIO.clearScreen(); // Ensure list is shown again after failed search
                 return loadChannels(myChannels, restarted, text, destinationPath, startIndex);
             }
             return result;
@@ -161,7 +116,7 @@ public class RecorderHelper {
             // Last page, ask for input but don't increment page further
             ChannelSelectionResult result = waitForChannelInput(myChannels, restarted, text, destinationPath, startIndex);
             if (result == ChannelSelectionResult.RESTART_MAIN_PROMPT) {
-                clearScreen(); // Ensure list is shown again after failed search
+                userIO.clearScreen(); // Ensure list is shown again after failed search
                 return loadChannels(myChannels, restarted, text, destinationPath, startIndex);
             }
             return result;
@@ -185,12 +140,12 @@ public class RecorderHelper {
         public UserCancelledException(String msg) { super(msg); }
     }
 
-    private final UserInputHelper userIO;
+    private final UserIOHelper userIO;
     
     /**
      * Constructs a RecorderHelper with a given UserInputHelper and HelpText for testable input/output and messages.
      */
-    public RecorderHelper(UserInputHelper userIO) {
+    public RecorderHelper(UserIOHelper userIO) {
         this.userIO = userIO;
     }
 
@@ -213,20 +168,20 @@ public class RecorderHelper {
         String input = "";
         while (true) {
             if (!forcePrompt) {
-                input = userIO.promptAndRead(HelpText.PROMPT_CHANNEL_SELECTION);
+                input = userIO.promptAndRead(TextHelper.PROMPT_CHANNEL_SELECTION);
             } else {
                 forcePrompt = false;
             }
             if (input == null) {
-                LogHelper.LogError(HelpText.USER_INPUT_NULL);
-                throw new UserCancelledException(HelpText.USER_INPUT_NULL);
+                LogHelper.LogError(TextHelper.USER_INPUT_NULL);
+                throw new UserCancelledException(TextHelper.USER_INPUT_NULL);
             }
             if (input.isEmpty()) {
                 return ChannelSelectionResult.NEXT_PAGE;
             }
             if (input.equalsIgnoreCase("q")) {
-                LogHelper.Log(HelpText.USER_CHOSE_QUIT);
-                throw new UserCancelledException(HelpText.USER_CHOSE_QUIT);
+                LogHelper.Log(TextHelper.USER_CHOSE_QUIT);
+                throw new UserCancelledException(TextHelper.USER_CHOSE_QUIT);
             }
             if (isNumeric(input)) {
                 boolean selected = handleChannelCodeSelection(myChannels, input, destinationPath);
@@ -240,8 +195,8 @@ public class RecorderHelper {
                 } else if (searchResult == ChannelSelectionResult.RESTART_MAIN_PROMPT) {
                     return ChannelSelectionResult.RESTART_MAIN_PROMPT;
                 } else if (searchResult == ChannelSelectionResult.QUIT) {
-                    LogHelper.Log(HelpText.USER_CHOSE_QUIT_SEARCH);
-                    throw new UserCancelledException(HelpText.USER_CHOSE_QUIT_SEARCH);
+                    LogHelper.Log(TextHelper.USER_CHOSE_QUIT_SEARCH);
+                    throw new UserCancelledException(TextHelper.USER_CHOSE_QUIT_SEARCH);
                 } else if (searchResult == ChannelSelectionResult.NEXT_PAGE) {
                     return ChannelSelectionResult.NEXT_PAGE;
                 }
@@ -249,8 +204,8 @@ public class RecorderHelper {
             if (done) {
                 break;
             } else {
-                setErrorMessage(HelpText.INVALID_CHANNEL_SELECTION);
-                LogHelper.LogError(HelpText.INVALID_CHANNEL_SELECTION);
+                setErrorMessage(TextHelper.INVALID_CHANNEL_SELECTION);
+                LogHelper.LogError(TextHelper.INVALID_CHANNEL_SELECTION);
                 return ChannelSelectionResult.NEXT_PAGE;
             }
         }
@@ -265,8 +220,8 @@ public class RecorderHelper {
                 java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("(\\d{1,2}:\\d{2})").matcher(nameForTime);
                 if (matcher.find()) {
                     this.timeFrom = matcher.group(1);
-                    LogHelper.Log(String.format(HelpText.START_TIME_EXTRACTED, this.timeFrom));
-                    userIO.print(String.format(HelpText.START_TIME_EXTRACTED, this.timeFrom));
+                    LogHelper.Log(String.format(TextHelper.START_TIME_EXTRACTED, this.timeFrom));
+                    userIO.print(String.format(TextHelper.START_TIME_EXTRACTED, this.timeFrom));
                 } else {
                     this.timeFrom = "";
                 }
@@ -288,35 +243,35 @@ public class RecorderHelper {
         while (true) {
             java.util.List<M3UHolder> matches = ChannelSearchHelper.searchChannels(myChannels, input);
             if (matches.isEmpty()) {
-                String retryInput = userIO.promptAndRead(String.format(HelpText.NO_CHANNELS_FOUND, input));
+                String retryInput = userIO.promptAndRead(String.format(TextHelper.NO_CHANNELS_FOUND, input));
                 if (retryInput == null) {
-                    LogHelper.LogError(HelpText.USER_INPUT_NULL_SEARCH);
-                    throw new UserCancelledException(HelpText.USER_INPUT_NULL_SEARCH);
+                    LogHelper.LogError(TextHelper.USER_INPUT_NULL_SEARCH);
+                    throw new UserCancelledException(TextHelper.USER_INPUT_NULL_SEARCH);
                 }
                 if (retryInput.isEmpty()) {
                     // Only now, when user presses ENTER, return to main list (do NOT clear screen)
                     return ChannelSelectionResult.NEXT_PAGE;
                 }
                 if (retryInput.equalsIgnoreCase("q")) {
-                    LogHelper.Log(HelpText.USER_CHOSE_QUIT_SEARCH_RETRY);
-                    throw new UserCancelledException(HelpText.USER_CHOSE_QUIT_SEARCH_RETRY);
+                    LogHelper.Log(TextHelper.USER_CHOSE_QUIT_SEARCH_RETRY);
+                    throw new UserCancelledException(TextHelper.USER_CHOSE_QUIT_SEARCH_RETRY);
                 }
                 // Otherwise: new search string, do a new search
                 input = retryInput;
                 continue;
             } else {
-                displaySearchResults(matches, input);
-                String searchInput = userIO.promptAndRead(HelpText.PROMPT_SEARCH_RESULTS);
+                userIO.displaySearchResults(matches, maxNameLength);
+                String searchInput = userIO.promptAndRead(TextHelper.PROMPT_SEARCH_RESULTS);
                 if (searchInput == null) {
-                    LogHelper.LogError(HelpText.USER_INPUT_NULL_SEARCH_RESULT);
-                    throw new UserCancelledException(HelpText.USER_INPUT_NULL_SEARCH_RESULT);
+                    LogHelper.LogError(TextHelper.USER_INPUT_NULL_SEARCH_RESULT);
+                    throw new UserCancelledException(TextHelper.USER_INPUT_NULL_SEARCH_RESULT);
                 }
                 if (searchInput.isEmpty()) {
                     return ChannelSelectionResult.NEXT_PAGE;
                 }
                 if (searchInput.equalsIgnoreCase("q")) {
-                    LogHelper.Log(HelpText.USER_CHOSE_QUIT_SEARCH);
-                    throw new UserCancelledException(HelpText.USER_CHOSE_QUIT_SEARCH);
+                    LogHelper.Log(TextHelper.USER_CHOSE_QUIT_SEARCH);
+                    throw new UserCancelledException(TextHelper.USER_CHOSE_QUIT_SEARCH);
                 }
                 if (isNumeric(searchInput)) {
                     for (M3UHolder mH : matches) {
@@ -326,8 +281,8 @@ public class RecorderHelper {
                             java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("(\\d{1,2}:\\d{2})").matcher(nameForTime);
                             if (matcher.find()) {
                                 this.timeFrom = matcher.group(1);
-                                LogHelper.Log(String.format(HelpText.START_TIME_EXTRACTED, this.timeFrom));
-                                userIO.print(String.format(HelpText.START_TIME_EXTRACTED, this.timeFrom));
+                                LogHelper.Log(String.format(TextHelper.START_TIME_EXTRACTED, this.timeFrom));
+                                userIO.print(String.format(TextHelper.START_TIME_EXTRACTED, this.timeFrom));
                             } else {
                                 this.timeFrom = "";
                             }
@@ -340,21 +295,13 @@ public class RecorderHelper {
                         }
                     }
                     // If no matching channel number was found
-                    userIO.print(HelpText.CHANNEL_CODE_NOT_FOUND);
+                    userIO.print(TextHelper.CHANNEL_CODE_NOT_FOUND);
                     continue;
                 }
                 // Otherwise: new search string, do a new search
                 input = searchInput;
             }
         }
-    }
-
-    /**
-     * Displays up to 20 search results using UserInputHelper, with dynamic alignment for channel code
-     */
-    private void displaySearchResults(java.util.List<M3UHolder> matches, String input) {
-        // Always use the maxNameLength from the full list for search results
-        StringHelper.printChannelList(matches, 0, Math.min(matches.size(), StringHelper.CHANNELS_PER_PAGE), System.out::println, maxNameLength);
     }
 
     /**
@@ -368,8 +315,8 @@ public class RecorderHelper {
 		String input = "";
 		
 		if (startTime && this.timeFrom != null && !this.timeFrom.isEmpty()) {
-			userIO.print(String.format(HelpText.START_TIME_ALREADY_SET, this.timeFrom));
-			userIO.print(HelpText.PRESS_ENTER_TO_CONTINUE);
+			userIO.print(String.format(TextHelper.START_TIME_ALREADY_SET, this.timeFrom));
+			userIO.print(TextHelper.PRESS_ENTER_TO_CONTINUE);
 			readInput(); // Wait for user to see the message
 			return this.timeFrom;
 		}
@@ -392,7 +339,7 @@ public class RecorderHelper {
 				return input;
 			}else {
 				userIO.print("");
-				userIO.print(HelpText.WRONG_TIME_FORMAT);
+				userIO.print(TextHelper.WRONG_TIME_FORMAT);
 			}
 		}
 	}
@@ -405,7 +352,7 @@ public class RecorderHelper {
 	 */
 	public boolean correctTimeSyntax(String time, boolean startTime) {
 		    try {
-		        LocalTime.parse(time);
+		        DateTimeHelper.parseFlexibleLocalTime(time, TIME_FORMATTER);
 		        if (startTime) {
 		        	this.timeFrom = time;
 		        }else {
@@ -435,29 +382,11 @@ public class RecorderHelper {
 	}
 	
 	/**
-	 * Clears the console screen based on operating system
-	 */
-	public static void clearScreen(){
-        String os = System.getProperty("os.name").toLowerCase();
-        if (os.contains("win")) {
-            try {
-                new ProcessBuilder("cmd", "/c", "cls").inheritIO().start().waitFor();
-            } catch (Exception e) {
-                // Ignore errors, fallback to printing newlines
-                for (int i = 0; i < 50; i++) System.out.println();
-            }
-        } else {
-            System.out.print("\033");
-            System.out.print("\143"); // Only print to terminal, do not log
-        }
-    }
-	
-	/**
 	 * Waits until the start time is reached
 	 */
 	public void startCounter() {
 		
-		LocalTime targetTime = LocalTime.parse(this.timeFrom, TIME_FORMATTER);
+		LocalTime targetTime = DateTimeHelper.parseFlexibleLocalTime(this.timeFrom, TIME_FORMATTER);
 		 
 		while(true) {
 			 
@@ -466,12 +395,12 @@ public class RecorderHelper {
 				break;
 			}
 			
-			displayRecordingStatus(HelpText.WAITING_FOR_RECORDING_START, true);
+			userIO.displayRecordingStatus(TextHelper.WAITING_FOR_RECORDING_START, true, this.timeFrom, this.timeTo, this.url);
  
 			try {
 				Thread.sleep(SLEEP_INTERVAL_MS);
 			} catch (InterruptedException e) {
-				LogHelper.LogWarning(HelpText.START_COUNTER_INTERRUPTED);
+				LogHelper.LogWarning(TextHelper.START_COUNTER_INTERRUPTED);
 			}
 		}
 	}
@@ -481,7 +410,7 @@ public class RecorderHelper {
 	 */
 	public void endCounter() {
 		
-		LocalTime targetTime = LocalTime.parse(this.timeTo, TIME_FORMATTER);
+		LocalTime targetTime = DateTimeHelper.parseFlexibleLocalTime(this.timeTo, TIME_FORMATTER);
 		 
 		while(true) {
 			 
@@ -490,34 +419,13 @@ public class RecorderHelper {
 				break;
 			}
 			
-			displayRecordingStatus(HelpText.RECORDING_STARTED_WAITING_FOR_END, false);
+			userIO.displayRecordingStatus(TextHelper.RECORDING_STARTED_WAITING_FOR_END, false, this.timeFrom, this.timeTo, this.url);
  
 			try {
 				Thread.sleep(SLEEP_INTERVAL_MS);
 			} catch (InterruptedException e) {
-				LogHelper.LogWarning(HelpText.END_COUNTER_INTERRUPTED);
+				LogHelper.LogWarning(TextHelper.END_COUNTER_INTERRUPTED);
 			}
-		}
-	}
-	
-	/**
-	 * Common method to display recording status information
-	 * @param text Status text to display
-	 * @param isStart Whether this is for start display (affects log level)
-	 */
-	private void displayRecordingStatus(String text, boolean isStart) {
-		clearScreen();
-		
-		String displayTime = LEGACY_TIME_SECONDS_FORMATTER.format(new Date());
-		
-		LogHelper.Log("\n" + HelpText.RECORDING_STARTIME + this.timeFrom.trim());
-		LogHelper.Log(HelpText.RECORDING_STOPTIME + this.timeTo.trim());
-		LogHelper.Log(HelpText.URL_OF_CHANNEL + this.url.trim() + "\n");
-		
-		if (isStart) {
-			LogHelper.LogWarning("\n" + text + displayTime);
-		} else {
-		LogHelper.Log(text + displayTime);
 		}
 	}
 	
@@ -529,7 +437,7 @@ public class RecorderHelper {
 	public void startRecFFMPEG(String filePath, boolean isResume) throws Exception {
         recordingMode = RecordingMode.FFMPEG;
         validateRecordingSetup(this.url, filePath);
-        String outputFile = createFileName(filePath, LogHelper.getTimeZone(), this.channelInfo);
+        String outputFile = StringAndFileHelper.createFileNameWithSubfolder(filePath, LogHelper.getTimeZone(), this.channelInfo, this.timeFrom, this.timeTo);
         // Only download tvg-logo if not resume
         if (!isResume) {
             java.io.File posterFile = new java.io.File(new java.io.File(outputFile).getParentFile(), "poster.jpg");
@@ -551,7 +459,7 @@ public class RecorderHelper {
                     // Intentionally ignore output
                 }
             } catch (Exception e) {
-                LogHelper.LogWarning(HelpText.FFMPEG_OUTPUT_THREAD_ERROR + e.getMessage());
+                LogHelper.LogWarning(TextHelper.FFMPEG_OUTPUT_THREAD_ERROR + e.getMessage());
             }
         });
         ffmpegOutputThread.setDaemon(true);
@@ -563,7 +471,7 @@ public class RecorderHelper {
 	 * Performs a recording attempt, returns true if the stream lasted until stop time, otherwise false
 	 */
 	private boolean recordOnceRegular(String filePath, LocalTime targetTime) throws Exception {
-        String outputFile = createFileName(filePath, LogHelper.getTimeZone(), this.channelInfo);
+        String outputFile = StringAndFileHelper.createFileNameWithSubfolder(filePath, LogHelper.getTimeZone(), this.channelInfo, this.timeFrom, this.timeTo);
         java.net.URL urlObj = java.net.URI.create(this.url).toURL();
         java.net.URLConnection conn = urlObj.openConnection();
         conn.setReadTimeout(60_000); // 60 sekunder timeout
@@ -580,7 +488,7 @@ public class RecorderHelper {
                 }
             }
             if (LocalTime.now().isBefore(targetTime)) {
-                LogHelper.LogError(HelpText.REGULAR_INPUTSTREAM_ENDED);
+                LogHelper.LogError(TextHelper.REGULAR_INPUTSTREAM_ENDED);
                 return false;
             }
             return true;
@@ -597,11 +505,11 @@ public class RecorderHelper {
         validateRecordingSetup(this.url, filePath);
         // Only download tvg-logo if not resume
         if (!isResume) {
-            java.io.File posterFile = new java.io.File(new java.io.File(createFileName(filePath, LogHelper.getTimeZone(), this.channelInfo)).getParentFile(), "poster.jpg");
+            java.io.File posterFile = new java.io.File(new java.io.File(StringAndFileHelper.createFileNameWithSubfolder(filePath, LogHelper.getTimeZone(), this.channelInfo, this.timeFrom, this.timeTo)).getParentFile(), "poster.jpg");
             getLogo(this.channelInfo != null ? this.channelInfo.tvgLogo() : null, this.channelInfo != null ? this.channelInfo.tvgName() : null, posterFile);
         }
 
-        LocalTime targetTime = LocalTime.parse(this.timeTo, TIME_FORMATTER);
+        LocalTime targetTime = DateTimeHelper.parseFlexibleLocalTime(this.timeTo, TIME_FORMATTER);
 
         while (LocalTime.now().isBefore(targetTime)) {
             try {
@@ -613,64 +521,12 @@ public class RecorderHelper {
                     System.exit(1);
                 }
             } catch (Exception e) {
-                LogHelper.LogError(String.format(HelpText.REGULAR_EXCEPTION_DURING_RECORDING, e.getMessage()), e);
-                LogHelper.LogWarning(HelpText.REGULAR_WAITING_BEFORE_RESUME);
+                LogHelper.LogError(String.format(TextHelper.REGULAR_EXCEPTION_DURING_RECORDING, e.getMessage()), e);
+                LogHelper.LogWarning(TextHelper.REGULAR_WAITING_BEFORE_RESUME);
                 Thread.sleep(15_000);
                 // The loop continues and tries again
             }
         }
-    }
-	
-	/**
-	 * Creates a filename for the recording based on channel information and timing
-	 * @param filePath Base path for the recording
-	 * @param zone Timezone for date formatting
-	 * @param channel Channel information
-	 * @return Full path to the recording file
-	 */
-	public String createFileName(String filePath, java.time.ZoneId zone, M3UHolder channel) {
-        String date = DATE_FORMATTER.withZone(zone).format(java.time.ZonedDateTime.now(zone)).replace("-", "_");
-        String tvgName = channel != null && channel.tvgName() != null && !channel.tvgName().isEmpty() ? channel.tvgName().trim() : null;
-        String groupTitle = channel != null && channel.groupTitle() != null ? channel.groupTitle().trim() : "";
-       
-        String folder;
-        String fileNameBase;
-        String group = sanitizeForFileName(groupTitle);
-        String start = (this.timeFrom != null) ? this.timeFrom.replace(":", "") : "";
-        String stop = (this.timeTo != null) ? this.timeTo.replace(":", "") : "";
-        String sportPart = "";
-        String secondFolder = date + "_" + start + "_" + stop;
-        
-        if (channel != null && (channel.tvgId() == null || channel.tvgId().isEmpty())) {
-            // Directory name = group-title, filename = group-title[_Sport1_Sport2_Stage]_YYYY-MM-DD_START_STOP.ts
-            folder = group;
-            if (tvgName != null && !tvgName.isEmpty()) {
-                String[] matches = se.eskimos.recorder.SportsEventsHelper.extractAllEventsAndStages(tvgName);
-                if (matches.length > 0) {
-                    sportPart = "_" + String.join("_", matches);
-                }
-            }
-            fileNameBase = group + sportPart + "_" + date + "_" + start + "_" + stop;
-        } else if (tvgName != null && !tvgName.isEmpty()) {
-            // If tvg-id exists, use tvg-name for directory/filename, no sport matching
-            folder = sanitizeForFileName(tvgName);
-            fileNameBase = folder + "_" + date + "_" + start + "_" + stop;
-        } else {
-            // Fallback
-            folder = group;
-            fileNameBase = group + "_" + date + "_" + start + "_" + stop;
-        }
-        
-        // Validate filename length
-        if (fileNameBase.length() > MAX_FILENAME_LENGTH - FILE_EXTENSION.length()) {
-            fileNameBase = fileNameBase.substring(0, MAX_FILENAME_LENGTH - FILE_EXTENSION.length());
-        }
-        
-        java.io.File eventDir = new java.io.File(filePath, folder + File.separator + secondFolder);
-        if (!eventDir.exists()) eventDir.mkdirs();
-        String fileName = fileNameBase + FILE_EXTENSION;
-        fileName = fileName.replace("+", PLUS_REPLACEMENT);
-        return new java.io.File(eventDir, fileName).getAbsolutePath();
     }
 	
 	/**
@@ -679,21 +535,21 @@ public class RecorderHelper {
 	public void stopRecording() {
         
         if (this.url == null || this.url.isEmpty()) {
-            LogHelper.LogWarning(HelpText.STOP_NO_URL_SET);
+            LogHelper.LogWarning(TextHelper.STOP_NO_URL_SET);
             return;
         }
         
         if (recordingMode == RecordingMode.REGULAR) {
-            LogHelper.LogWarning(HelpText.STOP_REGULAR_MODE_NO_SEPARATE_PROCESS);
+            LogHelper.LogWarning(TextHelper.STOP_REGULAR_MODE_NO_SEPARATE_PROCESS);
             return;
         }
         
         // Only kill the correct ffmpeg process
         if (this.ffmpegProcess != null && this.ffmpegProcess.isAlive()) {
             this.ffmpegProcess.destroy();
-            LogHelper.Log(HelpText.STOPPED_FFMPEG_PROCESS_AND_ENDED_PROGRAM);
+            LogHelper.Log(TextHelper.STOPPED_FFMPEG_PROCESS_AND_ENDED_PROGRAM);
         } else {
-            LogHelper.LogWarning(HelpText.NO_FFMPEG_PROCESS_TO_KILL_OR_ALREADY_TERMINATED);
+            LogHelper.LogWarning(TextHelper.NO_FFMPEG_PROCESS_TO_KILL_OR_ALREADY_TERMINATED);
         }
     }
 
@@ -709,7 +565,7 @@ public class RecorderHelper {
         java.io.InputStream input = null;
         java.io.FileOutputStream outputStream = null;
         try {
-            System.out.println(HelpText.DOWNLOAD_M3U_PROGRESS);
+            System.out.println(TextHelper.DOWNLOAD_M3U_PROGRESS);
             java.net.URL url = java.net.URI.create(myUrl).toURL();
             java.net.URLConnection conn = url.openConnection();
             int contentLength = conn.getContentLength();
@@ -721,7 +577,7 @@ public class RecorderHelper {
             int lastPercent = -1;
             boolean showProgress = contentLength > 0;
             if (!showProgress) {
-                System.out.print(HelpText.DOWNLOADING);
+                System.out.print(TextHelper.DOWNLOADING);
             }
         while ((read = input.read(bytes)) != -1) {
             outputStream.write(bytes, 0, read);
@@ -729,23 +585,23 @@ public class RecorderHelper {
                     totalRead += read;
                     int percent = (int) ((totalRead * 100) / contentLength);
                     if (percent != lastPercent && percent <= 100) {
-                        System.out.print(String.format(HelpText.DOWNLOADING_PERCENT, percent));
+                        System.out.print(String.format(TextHelper.DOWNLOADING_PERCENT, percent));
                         lastPercent = percent;
                     }
                 }
             }
             if (showProgress) {
-                System.out.println(HelpText.DOWNLOADING_DONE); // Clear line
+                System.out.println(TextHelper.DOWNLOADING_DONE); // Clear line
             } else {
                 System.out.println();
         }
     } catch (MalformedURLException e) {
-            LogHelper.LogError(HelpText.EXCEPTION_IN_RECORDERHELPER_GETM3UFILE, e);
-        LogHelper.LogError(String.format(HelpText.MALFORMED_URL, myUrl));
+            LogHelper.LogError(TextHelper.EXCEPTION_IN_RECORDERHELPER_GETM3UFILE, e);
+        LogHelper.LogError(String.format(TextHelper.MALFORMED_URL, myUrl));
         LogHelper.LogError(LogHelper.printStackTrace(e));
     } catch (IOException e) {
-            LogHelper.LogError(HelpText.EXCEPTION_IN_RECORDERHELPER_GETM3UFILE, e);
-        LogHelper.LogError(String.format(HelpText.IO_ERROR_DURING_RECORDING, e.getMessage()));
+            LogHelper.LogError(TextHelper.EXCEPTION_IN_RECORDERHELPER_GETM3UFILE, e);
+        LogHelper.LogError(String.format(TextHelper.IO_ERROR_DURING_RECORDING, e.getMessage()));
         LogHelper.LogError(LogHelper.printStackTrace(e));
         } finally {
             try { if (input != null) input.close(); } catch (Exception ignored) {}
@@ -770,18 +626,18 @@ public class RecorderHelper {
 			return input.trim();
 			}
 		} catch (NoSuchElementException e) {
-            LogHelper.LogError(HelpText.EXCEPTION_IN_READ_INPUT, e);
-            LogHelper.LogError(HelpText.NO_INPUT_AVAILABLE + e.getMessage());
+            LogHelper.LogError(TextHelper.EXCEPTION_IN_READ_INPUT, e);
+            LogHelper.LogError(TextHelper.NO_INPUT_AVAILABLE + e.getMessage());
             LogHelper.LogError(LogHelper.printStackTrace(e));
             return null;
         } catch (IllegalStateException e) {
-            LogHelper.LogError(HelpText.EXCEPTION_IN_READ_INPUT, e);
-            LogHelper.LogError(HelpText.SCANNER_CLOSED + e.getMessage());
+            LogHelper.LogError(TextHelper.EXCEPTION_IN_READ_INPUT, e);
+            LogHelper.LogError(TextHelper.SCANNER_CLOSED + e.getMessage());
             LogHelper.LogError(LogHelper.printStackTrace(e));
             return null;
         } catch (Exception e) {
-            LogHelper.LogError(HelpText.EXCEPTION_IN_READ_INPUT, e);
-            LogHelper.LogError(HelpText.UNKNOWN_ERROR_WHILE_READING_INPUT + e.getMessage());
+            LogHelper.LogError(TextHelper.EXCEPTION_IN_READ_INPUT, e);
+            LogHelper.LogError(TextHelper.UNKNOWN_ERROR_WHILE_READING_INPUT + e.getMessage());
             LogHelper.LogError(LogHelper.printStackTrace(e));
             return null;
 		}	
@@ -888,17 +744,17 @@ public class RecorderHelper {
             ProcessBuilder pb = new ProcessBuilder(resumeArgs);
             pb.inheritIO();
             Process process = pb.start();
-            LogHelper.LogWarning(HelpText.REGULAR_STARTED_RESUME_PROCESS);
+            LogHelper.LogWarning(TextHelper.REGULAR_STARTED_RESUME_PROCESS);
             Thread.sleep(2000);
             try {
                 int exitCode = process.exitValue();
-                LogHelper.LogError(String.format(HelpText.REGULAR_RESUMED_PROCESS_EXITED, exitCode));
+                LogHelper.LogError(String.format(TextHelper.REGULAR_RESUMED_PROCESS_EXITED, exitCode));
             } catch (IllegalThreadStateException itse) {
-                LogHelper.Log(HelpText.REGULAR_RESUMED_PROCESS_RUNNING);
+                LogHelper.Log(TextHelper.REGULAR_RESUMED_PROCESS_RUNNING);
             }
         } catch (Exception ex) {
             System.err.println("Undantag i resumeRecordingProcess: " + ex.getMessage());
-            LogHelper.LogError(HelpText.REGULAR_FAILED_TO_RESUME + ex.getMessage(), ex);
+            LogHelper.LogError(TextHelper.REGULAR_FAILED_TO_RESUME + ex.getMessage(), ex);
             throw ex;
         }
     }
@@ -917,15 +773,15 @@ public class RecorderHelper {
                 while ((read = input.read(bytes)) != -1) {
                     outputStream.write(bytes, 0, read);
                 }
-                LogHelper.Log(String.format(HelpText.REGULAR_DOWNLOADED_TVG_LOGO, (channelName != null ? channelName : "?")));
+                LogHelper.Log(String.format(TextHelper.REGULAR_DOWNLOADED_TVG_LOGO, (channelName != null ? channelName : "?")));
             } catch (Exception e) {
-                LogHelper.LogWarning(String.format(HelpText.REGULAR_FAILED_TO_DOWNLOAD_TVG_LOGO, (channelName != null ? channelName : "?"), e.getMessage()));
+                LogHelper.LogWarning(String.format(TextHelper.REGULAR_FAILED_TO_DOWNLOAD_TVG_LOGO, (channelName != null ? channelName : "?"), e.getMessage()));
             } finally {
                 try { if (input != null) input.close(); } catch (Exception ignored) {}
                 try { if (outputStream != null) outputStream.close(); } catch (Exception ignored) {}
             }
         } else {
-            LogHelper.Log(HelpText.REGULAR_NO_TVG_LOGO_FOUND.replace("%s", (channelName != null ? channelName : "?")));
+            LogHelper.Log(TextHelper.REGULAR_NO_TVG_LOGO_FOUND.replace("%s", (channelName != null ? channelName : "?")));
         }
     }
 }
