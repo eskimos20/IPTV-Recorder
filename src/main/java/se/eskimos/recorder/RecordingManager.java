@@ -36,7 +36,7 @@ public class RecordingManager {
     public void startRecRegular(String url, String outputFile, String stopTime) throws IOException {
         LocalTime targetTime = DateTimeHelper.parseFlexibleLocalTime(stopTime, TIME_FORMATTER);
         try (var input = java.net.URI.create(url).toURL().openStream();
-             var outputStream = new java.io.FileOutputStream(new java.io.File(outputFile))) {
+             var outputStream = new java.io.FileOutputStream(new java.io.File(outputFile), true)) {
             byte[] bytes = new byte[8192];
             int read;
             while ((read = input.read(bytes)) != -1) {
