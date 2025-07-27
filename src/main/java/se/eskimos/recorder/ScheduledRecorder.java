@@ -65,6 +65,19 @@ public class ScheduledRecorder {
         ZoneId zone = ZoneId.of(timezone);
         LogHelper.setTimeZone(zone);
        
+        // Wait until start time before attempting any connections
+        DateTimeFormatter formatter = is24Hour ? DateTimeFormatter.ofPattern("HH:mm") : DateTimeFormatter.ofPattern("hh:mm a");
+        ZonedDateTime now = ZonedDateTime.now(zone);
+        LocalTime startLocal = DateTimeHelper.parseFlexibleLocalTime(startTime, formatter);
+        ZonedDateTime start = now.withHour(startLocal.getHour()).withMinute(startLocal.getMinute()).withSecond(0).withNano(0);
+        if (start.isBefore(now)) {
+            LogHelper.LogWarning(String.format(TextHelper.SCHEDULER_START_TIME_PASSED, startTime));
+        } else {
+            long millisToWait = java.time.Duration.between(now, start).toMillis();
+            LogHelper.Log(String.format(TextHelper.SCHEDULER_WAITING_UNTIL_START, (millisToWait/1000), startTime));
+            try { Thread.sleep(millisToWait); } catch (InterruptedException ie) { /* ignore */ }
+        }
+       
         // Startup connection retry mechanism: uses configurable recRetries and recRetriesDelay
         boolean connectionEstablished = false;
         
@@ -82,9 +95,9 @@ public class ScheduledRecorder {
                 break;
             } catch (Exception e) {
                 if (attempt < recRetries) {
-                    LogHelper.LogWarning(String.format("[STARTUP] Connection attempt %d/%d failed: %s. Retrying in %d seconds...", attempt, recRetries, e.getMessage(), (recRetriesDelay/1000)));
+                    LogHelper.LogWarning(String.format("[STARTUP] Connection attempt %d/%d failed: %s. Retrying in %d seconds...", attempt, recRetries, e.getMessage(), recRetriesDelay));
                     try {
-                        Thread.sleep(recRetriesDelay);
+                        Thread.sleep(recRetriesDelay * 1000);
                     } catch (InterruptedException ie) {
                         LogHelper.LogError("[STARTUP] Retry delay interrupted: " + ie.getMessage());
                         Thread.currentThread().interrupt();
@@ -104,19 +117,7 @@ public class ScheduledRecorder {
         }
        
         RecorderHelper helper = null;
-        DateTimeFormatter formatter = is24Hour ? DateTimeFormatter.ofPattern("HH:mm") : DateTimeFormatter.ofPattern("hh:mm a");
         LocalTime stop = DateTimeHelper.parseFlexibleLocalTime(stopTime, formatter);
-        // Wait until start time before starting any recording (applies to both modes)
-        ZonedDateTime now = ZonedDateTime.now(zone);
-        LocalTime startLocal = DateTimeHelper.parseFlexibleLocalTime(startTime, formatter);
-        ZonedDateTime start = now.withHour(startLocal.getHour()).withMinute(startLocal.getMinute()).withSecond(0).withNano(0);
-        if (start.isBefore(now)) {
-            LogHelper.LogWarning(String.format(TextHelper.SCHEDULER_START_TIME_PASSED, startTime));
-        } else {
-            long millisToWait = java.time.Duration.between(now, start).toMillis();
-            LogHelper.Log(String.format(TextHelper.SCHEDULER_WAITING_UNTIL_START, (millisToWait/1000), startTime));
-            try { Thread.sleep(millisToWait); } catch (InterruptedException ie) { /* ignore */ }
-        }
        
         if ("ffmpeg".equalsIgnoreCase(mode)) {
             helper = new RecorderHelper(new UserIOHelper(new java.util.Scanner(System.in), System.out));
@@ -145,8 +146,8 @@ public class ScheduledRecorder {
                     retryCount++;
                     started = false;
                     if (retryCount < recRetries) {
-                        LogHelper.LogWarning(String.format(TextHelper.SCHEDULER_FAILED_START_FFMPEG, retryCount, recRetries, displayName, (recRetriesDelay/1000), LogHelper.printStackTrace(e)));
-                        try { Thread.sleep(recRetriesDelay); } catch (Exception t) { LogHelper.LogError(TextHelper.SCHEDULER_ERROR_WAITING_BETWEEN_ATTEMPTS + LogHelper.printStackTrace(t)); }
+                        LogHelper.LogWarning(String.format(TextHelper.SCHEDULER_FAILED_START_FFMPEG, retryCount, recRetries, displayName, recRetriesDelay, LogHelper.printStackTrace(e)));
+                        try { Thread.sleep(recRetriesDelay * 1000); } catch (Exception t) { LogHelper.LogError(TextHelper.SCHEDULER_ERROR_WAITING_BETWEEN_ATTEMPTS + LogHelper.printStackTrace(t)); }
                     } else {
                         LogHelper.LogError(String.format(TextHelper.SCHEDULER_COULD_NOT_START_FFMPEG, recRetries, displayName, LogHelper.printStackTrace(e)));
                         LogHelper.LogError(TextHelper.SCHEDULER_PROCESS_EXITING);
@@ -224,8 +225,8 @@ public class ScheduledRecorder {
                     retryCount++;
                     started = false;
                     if (retryCount < recRetries) {
-                        LogHelper.LogWarning(String.format(TextHelper.SCHEDULER_FAILED_START_REGULAR, retryCount, recRetries, displayName, (recRetriesDelay/1000), LogHelper.printStackTrace(e)));
-                        try { Thread.sleep(recRetriesDelay); } catch (Exception t) { LogHelper.LogError(TextHelper.SCHEDULER_ERROR_WAITING_BETWEEN_ATTEMPTS + LogHelper.printStackTrace(t)); }
+                        LogHelper.LogWarning(String.format(TextHelper.SCHEDULER_FAILED_START_REGULAR, retryCount, recRetries, displayName, recRetriesDelay, LogHelper.printStackTrace(e)));
+                        try { Thread.sleep(recRetriesDelay * 1000); } catch (Exception t) { LogHelper.LogError(TextHelper.SCHEDULER_ERROR_WAITING_BETWEEN_ATTEMPTS + LogHelper.printStackTrace(t)); }
                     } else {
                         LogHelper.LogError(String.format(TextHelper.SCHEDULER_COULD_NOT_START_REGULAR, recRetries, displayName, LogHelper.printStackTrace(e)));
                         // Try to delete the created folder if empty
