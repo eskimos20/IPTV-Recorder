@@ -473,7 +473,7 @@ public class StartRecorder {
 		cmd.add(Integer.toString(recRetries));       // 16 (args[12])
 		cmd.add(Integer.toString(recRetriesDelay));  // 17 (args[13])
 		cmd.add(selectedChannel != null ? selectedChannel.tvgLogo() : ""); // 18 (args[14])
-		cmd.add("false"); // 19 (args[15], isResume, always false on first start)
+
 		
 
 		ProcessBuilder pb = new ProcessBuilder(cmd);

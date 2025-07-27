@@ -62,10 +62,6 @@ public class TextHelper {
     public static final String SPECIAL_SCENARIO_NO_MATCH = "No channel matched the search: '%s'";
     public static final String SPECIAL_SCENARIO_START_TIME_EXTRACTED = "Start time '%s' was automatically extracted from the channel name.";
     public static final String REGULAR_INPUTSTREAM_ENDED = "[REGULAR] InputStream ended before stop time. Stream may have been dropped or closed by server.";
-    public static final String REGULAR_WAITING_BEFORE_RESUME = "[REGULAR] Waiting 15 seconds before retrying resume...";
-    public static final String REGULAR_STARTED_RESUME_PROCESS = "[REGULAR] Started new ScheduledRecorder process for resume. Exiting current process.";
-    public static final String REGULAR_RESUMED_PROCESS_EXITED = "[REGULAR] Resumed process exited immediately with code: %d";
-    public static final String REGULAR_RESUMED_PROCESS_RUNNING = "[REGULAR] Resumed process is running.";
     public static final String SCHEDULER_LOGGING_STARTED = "[SCHEDULER] Logging started. Log file: %s";
     public static final String SCHEDULER_LOGGING_ONLY_TERMINAL = "[SCHEDULER] Logging only to terminal. No log file specified.";
     public static final String SCHEDULER_START_TIME_PASSED = "[SCHEDULER] Start time '%s' has already passed, starting immediately.";
@@ -76,6 +72,7 @@ public class TextHelper {
     public static final String SCHEDULER_RECORDING_IN_PROGRESS = "[SCHEDULER] Recording in progress, waiting until stop time %s...";
     public static final String SCHEDULER_STOP_TIME_REACHED = "[SCHEDULER] Stop time reached. Stopping recording.";
     public static final String SCHEDULER_STARTED_RECORDING_FOR_CHANNEL = "[SCHEDULER] Started recording for channel: %s";
+    public static final String SCHEDULER_RECORDING_STARTED = "[SCHEDULER] Started recording for channel: %s from %s to %s";
     public static final String SCHEDULER_STOP_TIME_REACHED_CANCEL_REGULAR = "[SCHEDULER] Stop time reached. Attempting to cancel REGULAR recording.";
     public static final String SCHEDULER_REGULAR_RECORDING_CANCELLED = "[SCHEDULER] REGULAR recording cancelled (or already completed).";
     public static final String SCHEDULER_DELETED_EMPTY_RECORDING_FOLDER = "[SCHEDULER] Deleted empty recording folder: %s";
@@ -90,7 +87,7 @@ public class TextHelper {
     public static final String SCHEDULER_UNCAUGHT_THROWABLE = "[SCHEDULER] Uncaught throwable in thread %s: %s";
     public static final String SCHEDULER_PROCESS_EXITING = "[SCHEDULER] Process exiting with exit(1)";
     public static final String REGULAR_EXCEPTION_DURING_RECORDING = "[REGULAR] Exception during recording: %s";
-    public static final String REGULAR_FAILED_TO_RESUME = "[REGULAR] Failed to resume recording: %s";
+
     public static final String REGULAR_DOWNLOADED_TVG_LOGO = "Downloaded tvg-logo for channel: %s";
     public static final String REGULAR_FAILED_TO_DOWNLOAD_TVG_LOGO = "Failed to download tvg-logo for channel: %s. %s";
     public static final String REGULAR_NO_TVG_LOGO_FOUND = "No tvg-logo found for channel: %s";

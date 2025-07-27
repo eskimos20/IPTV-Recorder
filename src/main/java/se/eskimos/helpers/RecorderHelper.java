@@ -434,15 +434,13 @@ public class RecorderHelper {
 	 * @param filePath Destination path for the recording
 	 * @throws Exception if recording cannot be started
 	 */
-	public void startRecFFMPEG(String filePath, boolean isResume) throws Exception {
+	public void startRecFFMPEG(String filePath) throws Exception {
         recordingMode = RecordingMode.FFMPEG;
         validateRecordingSetup(this.url, filePath);
         String outputFile = StringAndFileHelper.createFileNameWithSubfolder(filePath, LogHelper.getTimeZone(), this.channelInfo, this.timeFrom, this.timeTo);
-        // Only download tvg-logo if not resume
-        if (!isResume) {
-            java.io.File posterFile = new java.io.File(new java.io.File(outputFile).getParentFile(), "poster.jpg");
-            getLogo(this.channelInfo != null ? this.channelInfo.tvgLogo() : null, this.channelInfo != null ? this.channelInfo.tvgName() : null, posterFile);
-        }
+        // Download tvg-logo
+        java.io.File posterFile = new java.io.File(new java.io.File(outputFile).getParentFile(), "poster.jpg");
+        getLogo(this.channelInfo != null ? this.channelInfo.tvgLogo() : null, this.channelInfo != null ? this.channelInfo.tvgName() : null, posterFile);
         
         // Use ProcessBuilder with separate arguments to prevent command injection
         ProcessBuilder pb = new ProcessBuilder(
@@ -500,14 +498,12 @@ public class RecorderHelper {
 	 * @param filePath Destination path for the recording
 	 * @throws Exception if recording cannot be started
 	 */
-	public void startRecRegular(String filePath, boolean isResume) throws Exception {
+	public void startRecRegular(String filePath) throws Exception {
         recordingMode = RecordingMode.REGULAR;
         validateRecordingSetup(this.url, filePath);
-        // Only download tvg-logo if not resume
-        if (!isResume) {
-            java.io.File posterFile = new java.io.File(new java.io.File(StringAndFileHelper.createFileNameWithSubfolder(filePath, LogHelper.getTimeZone(), this.channelInfo, this.timeFrom, this.timeTo)).getParentFile(), "poster.jpg");
-            getLogo(this.channelInfo != null ? this.channelInfo.tvgLogo() : null, this.channelInfo != null ? this.channelInfo.tvgName() : null, posterFile);
-        }
+        // Download tvg-logo
+        java.io.File posterFile = new java.io.File(new java.io.File(StringAndFileHelper.createFileNameWithSubfolder(filePath, LogHelper.getTimeZone(), this.channelInfo, this.timeFrom, this.timeTo)).getParentFile(), "poster.jpg");
+        getLogo(this.channelInfo != null ? this.channelInfo.tvgLogo() : null, this.channelInfo != null ? this.channelInfo.tvgName() : null, posterFile);
 
         LocalTime targetTime = DateTimeHelper.parseFlexibleLocalTime(this.timeTo, TIME_FORMATTER);
 
@@ -517,18 +513,18 @@ public class RecorderHelper {
                 if (success) {
                     break; // Done!
                 } else {
-                    resumeRecordingProcess(filePath);
+                    LogHelper.LogError("Recording failed, exiting.");
                     System.exit(1);
                 }
             } catch (Exception e) {
                 LogHelper.LogError(String.format(TextHelper.REGULAR_EXCEPTION_DURING_RECORDING, e.getMessage()), e);
-                LogHelper.LogWarning(TextHelper.REGULAR_WAITING_BEFORE_RESUME);
+                LogHelper.LogWarning("[REGULAR] Waiting 15 seconds before retrying...");
                 Thread.sleep(15_000);
                 // The loop continues and tries again
             }
         }
     }
-	
+
 	/**
 	 * Stops the current recording process
 	 */
@@ -709,7 +705,7 @@ public class RecorderHelper {
      * Builds the argument list for ScheduledRecorder using the original channelInfo and all required parameters.
      * This method is the single source of truth for argument construction.
      */
-    public static java.util.List<String> buildScheduledRecorderArgsFromChannelInfo(M3UHolder channelInfo, String url, String filePath, String timeFrom, String timeTo, String logConfigPath, String timezone, boolean is24Hour, String logFile, int recRetries, int recRetriesDelay, boolean isResume) {
+    public static java.util.List<String> buildScheduledRecorderArgsFromChannelInfo(M3UHolder channelInfo, String url, String filePath, String timeFrom, String timeTo, String logConfigPath, String timezone, boolean is24Hour, String logFile, int recRetries, int recRetriesDelay) {
         java.util.List<String> args = new java.util.ArrayList<>();
         args.add(url); // 0
         args.add(filePath); // 1
@@ -726,38 +722,11 @@ public class RecorderHelper {
         args.add(Integer.toString(recRetries)); // 12
         args.add(Integer.toString(recRetriesDelay)); // 13
         args.add(channelInfo != null && channelInfo.tvgLogo() != null ? channelInfo.tvgLogo() : ""); // 14 (tvgLogo)
-        args.add(Boolean.toString(isResume)); // 15
+    
         return args;
     }
 
-    // Resume ScheduledRecorder process med resume-flagga
-    private void resumeRecordingProcess(String filePath) throws Exception {
-        try {
-            java.util.List<String> resumeArgs = new java.util.ArrayList<>();
-            resumeArgs.add("java");
-            resumeArgs.add("-cp");
-            resumeArgs.add(System.getProperty("java.class.path"));
-            resumeArgs.add("se.eskimos.recorder.ScheduledRecorder");
-            java.util.List<String> scheduledArgs = buildScheduledRecorderArgsFromChannelInfo(
-                this.channelInfo, this.url, filePath, this.timeFrom, this.timeTo, this.logConfigPath, this.timezone, this.is24Hour, this.logFile, this.recRetries, this.recRetriesDelay, true);
-            resumeArgs.addAll(scheduledArgs);
-            ProcessBuilder pb = new ProcessBuilder(resumeArgs);
-            pb.inheritIO();
-            Process process = pb.start();
-            LogHelper.LogWarning(TextHelper.REGULAR_STARTED_RESUME_PROCESS);
-            Thread.sleep(2000);
-            try {
-                int exitCode = process.exitValue();
-                LogHelper.LogError(String.format(TextHelper.REGULAR_RESUMED_PROCESS_EXITED, exitCode));
-            } catch (IllegalThreadStateException itse) {
-                LogHelper.Log(TextHelper.REGULAR_RESUMED_PROCESS_RUNNING);
-            }
-        } catch (Exception ex) {
-            System.err.println("Undantag i resumeRecordingProcess: " + ex.getMessage());
-            LogHelper.LogError(TextHelper.REGULAR_FAILED_TO_RESUME + ex.getMessage(), ex);
-            throw ex;
-        }
-    }
+
 
     // Download a logo image from a URL and save to dest (no progress print)
     public static void getLogo(String logoUrl, String channelName, File dest) {

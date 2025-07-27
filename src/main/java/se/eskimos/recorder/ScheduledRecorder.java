@@ -54,35 +54,70 @@ public class ScheduledRecorder {
         M3UHolder channelInfo = new M3UHolder(groupTitle, url, tvgName, groupTitle, tvgId, tvgName, tvgLogo);
         // Determine displayName (tvgName or name as fallback)
         String displayName = (tvgName != null && !tvgName.isEmpty()) ? tvgName : channelInfo.name();
-        // Read isResume flag last (default false if missing)
-        final boolean isResume = (args.length > 15) && Boolean.parseBoolean(args[15]);
+
         // Only set log file if provided as argument
         if (logFile != null && !logFile.isEmpty()) {
             LogHelper.setLogFile(logFile);
-            if (!isResume) {
-                LogHelper.Log(String.format(TextHelper.SCHEDULER_LOGGING_STARTED, logFile));
-            }
+            LogHelper.Log(String.format(TextHelper.SCHEDULER_LOGGING_STARTED, logFile));
         } else {
             System.err.println("[SCHEDULER] Logging only to terminal. No log file specified.");
         }
         ZoneId zone = ZoneId.of(timezone);
         LogHelper.setTimeZone(zone);
        
+        // Startup connection retry mechanism: 5 attempts with 1-minute intervals
+        final int STARTUP_RETRY_ATTEMPTS = 5;
+        final int STARTUP_RETRY_DELAY_MS = 60000; // 1 minute
+        boolean connectionEstablished = false;
+        
+        for (int attempt = 1; attempt <= STARTUP_RETRY_ATTEMPTS; attempt++) {
+            try {
+                LogHelper.Log(String.format("[STARTUP] Connection attempt %d/%d to URL: %s", attempt, STARTUP_RETRY_ATTEMPTS, url));
+                java.net.URL urlObj = java.net.URI.create(url).toURL();
+                java.net.URLConnection conn = urlObj.openConnection();
+                conn.setConnectTimeout(10000); // 10 second timeout
+                conn.setReadTimeout(10000); // 10 second timeout
+                conn.connect();
+                conn.getInputStream().close(); // Test the connection and close immediately
+                LogHelper.Log(String.format("[STARTUP] Connection successful on attempt %d/%d", attempt, STARTUP_RETRY_ATTEMPTS));
+                connectionEstablished = true;
+                break;
+            } catch (Exception e) {
+                if (attempt < STARTUP_RETRY_ATTEMPTS) {
+                    LogHelper.LogWarning(String.format("[STARTUP] Connection attempt %d/%d failed: %s. Retrying in 60 seconds...", attempt, STARTUP_RETRY_ATTEMPTS, e.getMessage()));
+                    try {
+                        Thread.sleep(STARTUP_RETRY_DELAY_MS);
+                    } catch (InterruptedException ie) {
+                        LogHelper.LogError("[STARTUP] Retry delay interrupted: " + ie.getMessage());
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                } else {
+                    LogHelper.LogError(String.format("[STARTUP] All %d connection attempts failed. Last error: %s", STARTUP_RETRY_ATTEMPTS, e.getMessage()));
+                    LogHelper.LogError("[STARTUP] Unable to establish connection, exiting.");
+                    shutdownAndExit(1);
+                }
+            }
+        }
+        
+        if (!connectionEstablished) {
+            LogHelper.LogError("[STARTUP] Failed to establish connection after all retry attempts.");
+            shutdownAndExit(1);
+        }
+       
         RecorderHelper helper = null;
         DateTimeFormatter formatter = is24Hour ? DateTimeFormatter.ofPattern("HH:mm") : DateTimeFormatter.ofPattern("hh:mm a");
         LocalTime stop = DateTimeHelper.parseFlexibleLocalTime(stopTime, formatter);
         // Wait until start time before starting any recording (applies to both modes)
-        if (!isResume) {
-            ZonedDateTime now = ZonedDateTime.now(zone);
-            LocalTime startLocal = DateTimeHelper.parseFlexibleLocalTime(startTime, formatter);
-            ZonedDateTime start = now.withHour(startLocal.getHour()).withMinute(startLocal.getMinute()).withSecond(0).withNano(0);
-            if (start.isBefore(now)) {
-                LogHelper.LogWarning(String.format(TextHelper.SCHEDULER_START_TIME_PASSED, startTime));
-            } else {
-                long millisToWait = java.time.Duration.between(now, start).toMillis();
-                LogHelper.Log(String.format(TextHelper.SCHEDULER_WAITING_UNTIL_START, (millisToWait/1000), startTime));
-                try { Thread.sleep(millisToWait); } catch (InterruptedException ie) { /* ignore */ }
-            }
+        ZonedDateTime now = ZonedDateTime.now(zone);
+        LocalTime startLocal = DateTimeHelper.parseFlexibleLocalTime(startTime, formatter);
+        ZonedDateTime start = now.withHour(startLocal.getHour()).withMinute(startLocal.getMinute()).withSecond(0).withNano(0);
+        if (start.isBefore(now)) {
+            LogHelper.LogWarning(String.format(TextHelper.SCHEDULER_START_TIME_PASSED, startTime));
+        } else {
+            long millisToWait = java.time.Duration.between(now, start).toMillis();
+            LogHelper.Log(String.format(TextHelper.SCHEDULER_WAITING_UNTIL_START, (millisToWait/1000), startTime));
+            try { Thread.sleep(millisToWait); } catch (InterruptedException ie) { /* ignore */ }
         }
        
         if ("ffmpeg".equalsIgnoreCase(mode)) {
@@ -106,7 +141,7 @@ public class ScheduledRecorder {
             while (retryCount < recRetries && !started) {
                 try {
                     LogHelper.Log(String.format(TextHelper.SCHEDULER_ATTEMPTING_START, (retryCount+1), recRetries, displayName));
-                    helper.startRecFFMPEG(outputPath, isResume); // If getLogo is called, pass displayName as channelName
+                    helper.startRecFFMPEG(outputPath); // If getLogo is called, pass displayName as channelName
                     started = true;
                 } catch (Exception e) {
                     retryCount++;
@@ -159,15 +194,13 @@ public class ScheduledRecorder {
                     displayName = (channelInfo.tvgName() != null && !channelInfo.tvgName().isEmpty()) ? channelInfo.tvgName() : channelInfo.name();
                     java.util.concurrent.Future<?> recFuture = java.util.concurrent.Executors.newSingleThreadExecutor().submit(() -> {
                         try {
-                            helperReg.startRecRegular(outputPath, isResume); // If getLogo is called, pass displayName as channelName
+                            helperReg.startRecRegular(outputPath); // If getLogo is called, pass displayName as channelName
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
                     });
                     started = true;
-                    if (!isResume) {
-                        LogHelper.Log(String.format(TextHelper.SCHEDULER_STARTED_RECORDING, displayName));
-                    }
+                    LogHelper.Log(String.format(TextHelper.SCHEDULER_RECORDING_STARTED, displayName, startTime, stopTime));
                     // Wait for the recording to finish or fail
                     while (true) {
                         LocalTime nowTime = LocalTime.now(zone);
