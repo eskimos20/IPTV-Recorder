@@ -65,35 +65,33 @@ public class ScheduledRecorder {
         ZoneId zone = ZoneId.of(timezone);
         LogHelper.setTimeZone(zone);
        
-        // Startup connection retry mechanism: 5 attempts with 1-minute intervals
-        final int STARTUP_RETRY_ATTEMPTS = 5;
-        final int STARTUP_RETRY_DELAY_MS = 60000; // 1 minute
+        // Startup connection retry mechanism: uses configurable recRetries and recRetriesDelay
         boolean connectionEstablished = false;
         
-        for (int attempt = 1; attempt <= STARTUP_RETRY_ATTEMPTS; attempt++) {
+        for (int attempt = 1; attempt <= recRetries; attempt++) {
             try {
-                LogHelper.Log(String.format("[STARTUP] Connection attempt %d/%d to URL: %s", attempt, STARTUP_RETRY_ATTEMPTS, url));
+                LogHelper.Log(String.format("[STARTUP] Connection attempt %d/%d to URL: %s", attempt, recRetries, url));
                 java.net.URL urlObj = java.net.URI.create(url).toURL();
                 java.net.URLConnection conn = urlObj.openConnection();
                 conn.setConnectTimeout(10000); // 10 second timeout
                 conn.setReadTimeout(10000); // 10 second timeout
                 conn.connect();
                 conn.getInputStream().close(); // Test the connection and close immediately
-                LogHelper.Log(String.format("[STARTUP] Connection successful on attempt %d/%d", attempt, STARTUP_RETRY_ATTEMPTS));
+                LogHelper.Log(String.format("[STARTUP] Connection successful on attempt %d/%d", attempt, recRetries));
                 connectionEstablished = true;
                 break;
             } catch (Exception e) {
-                if (attempt < STARTUP_RETRY_ATTEMPTS) {
-                    LogHelper.LogWarning(String.format("[STARTUP] Connection attempt %d/%d failed: %s. Retrying in 60 seconds...", attempt, STARTUP_RETRY_ATTEMPTS, e.getMessage()));
+                if (attempt < recRetries) {
+                    LogHelper.LogWarning(String.format("[STARTUP] Connection attempt %d/%d failed: %s. Retrying in %d seconds...", attempt, recRetries, e.getMessage(), (recRetriesDelay/1000)));
                     try {
-                        Thread.sleep(STARTUP_RETRY_DELAY_MS);
+                        Thread.sleep(recRetriesDelay);
                     } catch (InterruptedException ie) {
                         LogHelper.LogError("[STARTUP] Retry delay interrupted: " + ie.getMessage());
                         Thread.currentThread().interrupt();
                         break;
                     }
                 } else {
-                    LogHelper.LogError(String.format("[STARTUP] All %d connection attempts failed. Last error: %s", STARTUP_RETRY_ATTEMPTS, e.getMessage()));
+                    LogHelper.LogError(String.format("[STARTUP] All %d connection attempts failed. Last error: %s", recRetries, e.getMessage()));
                     LogHelper.LogError("[STARTUP] Unable to establish connection, exiting.");
                     shutdownAndExit(1);
                 }
